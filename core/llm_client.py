@@ -1,13 +1,14 @@
 """
 OpenRouter LLM Client
-Handles API calls to LLaMA 3.1 405B with fallback to Trinity
+Handles API calls to multiple LLM models with parallel execution and smart response selection
 """
 
 import os
 import json
 import logging
 import requests
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from dotenv import load_dotenv
 
@@ -15,11 +16,21 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Configuration
+# Configuration - Multiple models for parallel execution
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "tngtech/deepseek-r1t2-chimera:free")
-OPENROUTER_FALLBACK = os.getenv("OPENROUTER_FALLBACK_MODEL", "nvidia/nemotron-3-nano-30b-a3b:free")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free")
+OPENROUTER_MODEL_2 = os.getenv("OPENROUTER_MODEL_2", "meta-llama/llama-3.1-405b-instruct:free")
+OPENROUTER_FALLBACK = os.getenv("OPENROUTER_FALLBACK_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+# Model priority for smart selection (higher = better)
+MODEL_PRIORITY = {
+    "meta-llama/llama-3.1-405b-instruct:free": 100,  # Best quality
+    "google/gemini-2.0-flash-exp:free": 90,           # Fast + good quality
+    "meta-llama/llama-3.3-70b-instruct:free": 80,     # Good fallback
+    "tngtech/deepseek-r1t2-chimera:free": 70,
+    "nvidia/nemotron-3-nano-30b-a3b:free": 60,
+}
 
 
 def call_openrouter(
@@ -211,33 +222,147 @@ def get_contextual_fallback(
         logger.warning(f"Context analysis failed: {e}, using generic fallback")
         return get_random_fallback(session_id)
 
+def calculate_response_quality(response: str, model: str) -> int:
+    """
+    Calculate quality score for a response.
+    Higher score = better response.
+    
+    Scoring:
+    - Valid JSON format: +50
+    - Contains 'response' field: +30
+    - Response length > 50 chars: +10
+    - Model priority bonus: +N (from MODEL_PRIORITY)
+    - No error indicators: +10
+    """
+    if not response or response.startswith("Error"):
+        return 0
+    
+    score = 0
+    
+    # Check for valid JSON
+    try:
+        cleaned = clean_json_string(response) if "{" in response else response
+        parsed = json.loads(cleaned)
+        score += 50
+        
+        # Check for response field
+        if parsed.get("response") and len(parsed.get("response", "")) > 10:
+            score += 30
+    except (json.JSONDecodeError, Exception):
+        # Not JSON, but might still be usable text
+        if len(response) > 50 and not response.startswith("Error"):
+            score += 15
+    
+    # Response length bonus
+    if len(response) > 50:
+        score += 10
+    
+    # Model priority bonus
+    score += MODEL_PRIORITY.get(model, 50)
+    
+    # No error indicators
+    if "error" not in response.lower()[:50]:
+        score += 10
+    
+    return score
+
+
+def call_models_parallel(
+    messages: List[Dict[str, str]],
+    temperature: float = 0.8,
+    max_tokens: int = 500,
+    timeout_seconds: int = 25
+) -> Tuple[Optional[str], str]:
+    """
+    Call multiple models in parallel and return the best response.
+    
+    Args:
+        messages: List of message dicts
+        temperature: Creativity level
+        max_tokens: Max tokens per response  
+        timeout_seconds: Max time to wait for all models
+        
+    Returns:
+        Tuple of (best_response, model_used) or (None, "none") if all failed
+    """
+    # Models to try in parallel
+    models = [OPENROUTER_MODEL, OPENROUTER_MODEL_2, OPENROUTER_FALLBACK]
+    # Filter out duplicates while preserving order
+    models = list(dict.fromkeys(m for m in models if m))
+    
+    if not models:
+        logger.error("No models configured")
+        return None, "none"
+    
+    logger.info(f"🚀 Calling {len(models)} models in parallel: {[m.split('/')[-1] for m in models]}")
+    
+    results: Dict[str, str] = {}
+    
+    with ThreadPoolExecutor(max_workers=len(models)) as executor:
+        # Submit all model calls
+        future_to_model = {
+            executor.submit(
+                call_openrouter, 
+                messages, 
+                model, 
+                temperature, 
+                max_tokens
+            ): model
+            for model in models
+        }
+        
+        # Collect results as they complete
+        try:
+            for future in as_completed(future_to_model, timeout=timeout_seconds):
+                model = future_to_model[future]
+                try:
+                    result = future.result()
+                    if result and not result.startswith("Error"):
+                        results[model] = result
+                        logger.info(f"✅ {model.split('/')[-1]} responded ({len(result)} chars)")
+                    else:
+                        logger.warning(f"⚠️ {model.split('/')[-1]} returned error: {result[:50] if result else 'None'}...")
+                except Exception as e:
+                    logger.warning(f"❌ {model.split('/')[-1]} exception: {str(e)[:50]}")
+        except TimeoutError:
+            logger.warning(f"⏱️ Parallel call timed out after {timeout_seconds}s")
+    
+    if not results:
+        logger.error("All models failed in parallel execution")
+        return None, "none"
+    
+    # Score and select best response
+    scored = []
+    for model, response in results.items():
+        score = calculate_response_quality(response, model)
+        scored.append((score, model, response))
+        logger.debug(f"Model {model.split('/')[-1]} scored {score}")
+    
+    # Sort by score descending
+    scored.sort(reverse=True)
+    best_score, best_model, best_response = scored[0]
+    
+    logger.info(f"🏆 Selected {best_model.split('/')[-1]} (score: {best_score}) from {len(results)} responses")
+    
+    return best_response, best_model
+
+
 def call_with_fallback(
     messages: List[Dict[str, str]],
     temperature: float = 0.8
 ) -> str:
     """
-    Call primary model, fallback to secondary if failed.
+    Call models in parallel and return the best response.
+    Falls back to emergency response if all models fail.
     """
-    # Try primary model
-    response = call_openrouter(messages, model=OPENROUTER_MODEL, temperature=temperature)
+    # Try parallel execution
+    response, model_used = call_models_parallel(messages, temperature=temperature)
     
-    if response and not response.startswith("Error"):
-        return response
-    
-    # Try fallback model
     if response:
-        logger.warning(f"Primary model failed ({response}), trying fallback...")
-    else:
-        logger.warning("Primary model failed, trying fallback...")
-
-    response = call_openrouter(messages, model=OPENROUTER_FALLBACK, temperature=temperature)
-    
-    if response and not response.startswith("Error"):
         return response
     
-    # Emergency fallback response - note: session_id not available here
-    # This should rarely happen as generate_agent_response handles fallbacks
-    logger.error("Both models failed, using emergency fallback")
+    # Emergency fallback response - all models failed
+    logger.error("All parallel models failed, using emergency fallback")
     return random.choice(GENERIC_FALLBACK_MESSAGES)
 
 

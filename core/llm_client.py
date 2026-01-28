@@ -90,6 +90,9 @@ def call_openrouter(
 import random
 
 # Fallback messages to use when LLM fails or is stalling
+import re
+
+# Fallback messages to use when LLM fails or is stalling
 FALLBACK_MESSAGES = [
     "Acha ji, network is very slow. Please wait, I am trying...",
     "Hello? Can you hear me? My phone is breaking up.",
@@ -99,7 +102,19 @@ FALLBACK_MESSAGES = [
     "My son is calling on other line... wait one second.",
     "Screen is stuck. Should I restart the phone?",
     "I am not understanding. Explain slowly beta.",
-    "Why is it asking for password? I am confused."
+    "Why is it asking for password? I am confused.",
+    "Wait, my hands are shaking, hard to type.",
+    "Beta, can I call you? This typing is difficult.",
+    "The screen went black. Is it working?",
+    "I forgot my reading glasses, let me ask my neighbour.",
+    "Battery is 2%, let me find charger.",
+    "Is this the bank? Why is the logo different?",
+    "Something went wrong, it says 'Service Unavailable'.",
+    "Wait, I am looking for my passbook.",
+    "My grandson is crying, one moment please.",
+    "Sorry beta, I pressed the wrong button I think.",
+    "Can you send a photo? I can't read this text.",
+    "It is asking for some PIN, I don't remember."
 ]
 
 def get_random_fallback():
@@ -135,6 +150,54 @@ def call_with_fallback(
     return get_random_fallback()
 
 
+def clean_json_string(json_str: str) -> str:
+    """
+    Clean up JSON string to handle common LLM errors.
+    - Remove markdown code blocks
+    - Remove text before/after JSON
+    - Fix trailing commas
+    - Fix single quotes to double quotes (cautiously)
+    """
+    # 1. Remove markdown code blocks
+    if "```" in json_str:
+        json_str = re.sub(r'```json\s*|\s*```', '', json_str)
+        # Handle generic code blocks
+        json_str = re.sub(r'```\s*|\s*```', '', json_str)
+    
+    # 2. Extract content between first { and last }
+    start = json_str.find('{')
+    end = json_str.rfind('}') + 1
+    
+    if start != -1 and end > start:
+        json_str = json_str[start:end]
+    else:
+        # If no braces found, cannot parse
+        return json_str
+
+    # 3. Fix trailing commas (common error)
+    # Replaces ", }" with "}" and ", ]" with "]"
+    json_str = re.sub(r',\s*}', '}', json_str)
+    json_str = re.sub(r',\s*]', ']', json_str)
+    
+    # 4. Attempt to fix single quotes to double quotes for keys/values
+    # This is risky but matches many LLM python-style dict outputs
+    # Match 'key': or 'value', avoiding 's (like it's)
+    # A simple but useful fix for {'key': 'value'} style
+    if "'" in json_str and '"' not in json_str:
+        json_str = json_str.replace("'", '"')
+        # Revert changes for 's or I'm (basic heuristic)
+        json_str = json_str.replace('I"m', "I'm").replace('it"s', "it's")
+
+    # 5. Fix Python constants to JSON constants
+    # Only do this if we are reasonable sure it's not part of a string
+    # Simple replace is risky but effective for "scam_detected": True
+    if "True" in json_str or "False" in json_str or "None" in json_str:
+        json_str = json_str.replace(": True", ": true").replace(": False", ": false").replace(": None", ": null")
+        json_str = json_str.replace(":True", ": true").replace(":False", ": false").replace(":None", ": null")
+
+    return json_str
+
+
 def generate_agent_response(
     system_prompt: str,
     conversation_history: List[Dict[str, str]],
@@ -166,6 +229,7 @@ IMPORTANT GUIDELINES:
 2. MEMORY: Check the conversation history above. If you said your son is Rajesh, he remains Rajesh.
 3. REALISM: Do not be repetitive. If you already said "Network error", use a different excuse like "Doorbell" or "Glasses".
 4. TONE: Stay fearful and confused.
+5. FORMAT: **Output VALID JSON without any trailing commas.**
 
 RESPONSE FORMAT (respond in this exact JSON format):
 {{
@@ -190,24 +254,35 @@ Now analyze the scammer's message and respond:"""
     messages.append({"role": "user", "content": structured_prompt})
     
     # Get response
-    raw_response = call_with_fallback(messages, temperature=0.8)
+    raw_response = call_with_fallback(messages, temperature=0.85) # Increased temp for variety
     
     # Parse JSON from response
     try:
-        # Try to extract JSON from response
-        json_start = raw_response.find('{')
-        json_end = raw_response.rfind('}') + 1
-        
-        if json_start != -1 and json_end > json_start:
-            json_str = raw_response[json_start:json_end]
-            return json.loads(json_str)
-    except json.JSONDecodeError:
-        logger.warning("Failed to parse JSON, using raw response")
+        # Clean the response first
+        cleaned_json = clean_json_string(raw_response)
+        return json.loads(cleaned_json)
+            
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse JSON: {e}. Raw: {raw_response[:100]}...")
+    except Exception as e:
+        logger.error(f"Error during JSON processing: {e}")
     
     # Fallback: just use the response as-is or randomized fallback logic
-    is_error = raw_response.startswith("Error:") or "{" in raw_response or "```" in raw_response
-    
-    fallback_msg = get_random_fallback()
+    # If the raw response looks like a normal sentence (no JSON structure), use it directly
+    if "{" not in raw_response and len(raw_response) < 200 and not raw_response.startswith("Error"):
+         # The LLM ignored instructions and just spoke - that's fine for the 'response'
+         return {
+            "scam_detected": True,
+            "scam_type": "unknown",
+            "scammer_tactic": "unknown",
+            "strategy": "conversation_flow",
+            "intelligence": {},
+            "is_complete": False,
+            "agent_notes": "LLM output non-JSON text",
+            "response": raw_response
+        }
+
+    is_error = raw_response.startswith("Error:")
     
     return {
         "scam_detected": True,
@@ -223,5 +298,5 @@ Now analyze the scammer's message and respond:"""
         },
         "is_complete": False,
         "agent_notes": f"LLM Failure: {raw_response[:50]}..." if is_error else "Response parsing failed",
-        "response": fallback_msg if is_error else raw_response
+        "response": get_random_fallback() # Use fallback if totally failed
     }

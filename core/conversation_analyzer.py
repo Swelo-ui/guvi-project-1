@@ -98,6 +98,15 @@ CONTEXTUAL_RESPONSES = {
         "Beta, it's showing some number. But my son said never share OTP?",
         "Wait wait, phone was on silent. Let me check now.",
         "OTP... yes I got something. But first tell me your employee ID for verification?",
+        # New responses for more variety
+        "Message came from SBIOTP... wait, display is small for my old eyes.",
+        "6-digit number... okay wait, I'll read slowly. But what is YOUR ID first?",
+        "Phone vibrated! Let me see... battery also low, wait one second.",
+        "I see the message. It says valid for 3 minutes. But I have questions first.",
+        "OTP... hmm, which one? Two messages came. Which bank you said?",
+        "Number came but phone screen cracked, I can't see properly. Repeat your name?",
+        "Beta, before I tell OTP, give me your official helpline. I want to save it.",
+        "One came! But wait, my hand is shaking. Let me sit down first.",
     ],
     ScammerIntent.ACCOUNT_NUMBER: [
         "Account number? I have two accounts... which bank you need?",

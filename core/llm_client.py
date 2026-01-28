@@ -92,34 +92,93 @@ import random
 # Fallback messages to use when LLM fails or is stalling
 import re
 
-# Fallback messages to use when LLM fails or is stalling
-FALLBACK_MESSAGES = [
+from core.conversation_analyzer import (
+    analyze_conversation, 
+    get_contextual_response,
+    detect_intents,
+    ScammerIntent,
+    CONTEXTUAL_RESPONSES
+)
+
+# Generic fallback messages (used only when context detection fails)
+GENERIC_FALLBACK_MESSAGES = [
     "Acha ji, network is very slow. Please wait, I am trying...",
     "Hello? Can you hear me? My phone is breaking up.",
-    "Wait beta, my glasses are not here. Let me find them.",
-    "Babu, this app is showing 'Loading'... what to do?",
     "One minute, someone is at the door. I will just check.",
     "My son is calling on other line... wait one second.",
     "Screen is stuck. Should I restart the phone?",
-    "I am not understanding. Explain slowly beta.",
-    "Why is it asking for password? I am confused.",
-    "Wait, my hands are shaking, hard to type.",
-    "Beta, can I call you? This typing is difficult.",
     "The screen went black. Is it working?",
-    "I forgot my reading glasses, let me ask my neighbour.",
     "Battery is 2%, let me find charger.",
-    "Is this the bank? Why is the logo different?",
-    "Something went wrong, it says 'Service Unavailable'.",
-    "Wait, I am looking for my passbook.",
     "My grandson is crying, one moment please.",
     "Sorry beta, I pressed the wrong button I think.",
-    "Can you send a photo? I can't read this text.",
-    "It is asking for some PIN, I don't remember."
 ]
 
+# Session response tracking to prevent repetition
+_session_responses: Dict[str, List[str]] = {}
+
+def get_used_responses(session_id: str) -> List[str]:
+    """Get list of previously used responses for a session."""
+    return _session_responses.get(session_id, [])
+
+def track_response(session_id: str, response: str):
+    """Track a response as used for this session."""
+    if session_id not in _session_responses:
+        _session_responses[session_id] = []
+    _session_responses[session_id].append(response)
+    # Keep only last 20 to prevent memory issues
+    if len(_session_responses[session_id]) > 20:
+        _session_responses[session_id] = _session_responses[session_id][-20:]
+
 def get_random_fallback():
-    """Get a random fallback message to avoid repetition."""
-    return random.choice(FALLBACK_MESSAGES)
+    """Get a random generic fallback message."""
+    return random.choice(GENERIC_FALLBACK_MESSAGES)
+
+def get_contextual_fallback(
+    scammer_message: str, 
+    session_id: str = "default",
+    conversation_history: List[Dict[str, str]] = None
+) -> str:
+    """
+    Get a context-aware fallback based on what the scammer is asking.
+    
+    Args:
+        scammer_message: The scammer's current message
+        session_id: Session ID for tracking used responses
+        conversation_history: Previous messages in conversation
+        
+    Returns:
+        Contextually appropriate response
+    """
+    if conversation_history is None:
+        conversation_history = []
+    
+    used_responses = get_used_responses(session_id)
+    
+    try:
+        # Analyze the conversation for context
+        analysis = analyze_conversation(
+            scammer_message, 
+            conversation_history, 
+            used_responses
+        )
+        
+        # Get the contextual response
+        response = analysis.get("suggested_fallback", "")
+        
+        # Optionally append reverse extraction if appropriate
+        if analysis.get("should_reverse_extract") and random.random() > 0.5:
+            reverse_prompt = analysis.get("reverse_extraction_prompt", "")
+            if reverse_prompt:
+                response = f"{response} {reverse_prompt}"
+        
+        # Track this response
+        track_response(session_id, response)
+        
+        return response
+        
+    except Exception as e:
+        logger.warning(f"Context analysis failed: {e}, using generic fallback")
+        return get_random_fallback()
 
 def call_with_fallback(
     messages: List[Dict[str, str]],
@@ -202,11 +261,32 @@ def generate_agent_response(
     system_prompt: str,
     conversation_history: List[Dict[str, str]],
     current_message: str,
-    extraction_prompt: str
+    extraction_prompt: str,
+    session_id: str = "default"
 ) -> Dict[str, Any]:
     """
-    Generate agent response with structured thinking.
+    Generate agent response with structured thinking and context awareness.
+    
+    Args:
+        system_prompt: The persona system prompt
+        conversation_history: Previous messages
+        current_message: Current scammer message
+        extraction_prompt: Intelligence extraction prompt
+        session_id: Session ID for response tracking
     """
+    # Analyze conversation context for smarter responses
+    used_responses = get_used_responses(session_id)
+    
+    try:
+        context_analysis = analyze_conversation(
+            current_message,
+            conversation_history,
+            used_responses
+        )
+    except Exception as e:
+        logger.warning(f"Context analysis failed: {e}")
+        context_analysis = {"detected_intents": ["unknown"], "conversation_phase": "unknown"}
+    
     # Build messages array
     messages = [{"role": "system", "content": system_prompt}]
     
@@ -214,29 +294,48 @@ def generate_agent_response(
     for msg in conversation_history:
         role = "user" if msg.get("sender") == "scammer" else "assistant"
         content = msg.get("text", "")
-        # Add context from previous turns to help consistency
         messages.append({"role": role, "content": content})
     
     # Add current message
     messages.append({"role": "user", "content": current_message})
     
-    # Add extraction instructions AND Consistency Reminder
+    # Build context-aware structured prompt
+    intent_hint = context_analysis.get("primary_intent", "unknown")
+    phase_hint = context_analysis.get("conversation_phase", "unknown")
+    
     structured_prompt = f"""
 {extraction_prompt}
 
-IMPORTANT GUIDELINES:
-1. CONSISTENCY IS CRITICAL: You must NEVER contradict facts you stated earlier in the conversation (name, age, family, bank).
-2. MEMORY: Check the conversation history above. If you said your son is Rajesh, he remains Rajesh.
-3. REALISM: Do not be repetitive. If you already said "Network error", use a different excuse like "Doorbell" or "Glasses".
-4. TONE: Stay fearful and confused.
-5. FORMAT: **Output VALID JSON without any trailing commas.**
+CONTEXT ANALYSIS (use this to guide your response):
+- Scammer's likely intent: {intent_hint.upper()}
+- Conversation phase: {phase_hint}
+- Message count: {len(conversation_history) + 1}
+
+CRITICAL STRATEGIC GUIDELINES:
+
+1. **RESPOND TO CONTEXT:** The scammer is asking about {intent_hint}. Your response MUST address this specifically:
+   - If asking for OTP → Talk about the OTP, ask clarifying questions
+   - If asking for account → Express confusion about which account
+   - If threatening arrest → Show fear, but ask for official documents
+   - If asking for money → Pretend to try, ask for THEIR account details
+
+2. **REVERSE EXTRACTION:** Try to get scammer's details:
+   - "But sir, what is YOUR account? I need to verify you first."
+   - "Give me YOUR UPI, I'll confirm with my son before sharing."
+   - "What is your employee ID? I'm noting down for safety."
+
+3. **CONSISTENCY:** Never contradict facts from earlier (name, bank, family).
+
+4. **VARIETY:** Never repeat an exact response. Check conversation history.
+
+5. **NATURAL STALLING:** Use believable delays relevant to the context.
 
 RESPONSE FORMAT (respond in this exact JSON format):
 {{
     "scam_detected": true/false,
-    "scam_type": "bank_fraud/upi_fraud/digital_arrest/lottery_scam/unknown",
-    "scammer_tactic": "urgency/fear/greed/impersonation",
-    "strategy": "feigning_ignorance/technical_confusion/stalling/baiting/panic_mode/reverse_extraction",
+    "scam_type": "bank_fraud/upi_fraud/digital_arrest/lottery_scam/kyc_fraud/investment_scam/unknown",
+    "scammer_tactic": "urgency/fear/greed/impersonation/authority",
+    "strategy": "contextual_engagement/reverse_extraction/stalling/panic_mode/baiting/probing",
     "intelligence": {{
         "bank_accounts": [],
         "upi_ids": [],
@@ -245,11 +344,11 @@ RESPONSE FORMAT (respond in this exact JSON format):
         "suspicious_keywords": []
     }},
     "is_complete": true/false,
-    "agent_notes": "Brief analysis of scammer behavior",
-    "response": "Your reply to the scammer (2-3 sentences, Indian English, confused elderly person style)"
+    "agent_notes": "Brief analysis of what scammer wants and your strategy",
+    "response": "Your contextual reply (2-3 sentences, address what they asked, try to extract their details)"
 }}
 
-Now analyze the scammer's message and respond:"""
+Now analyze the scammer's message and respond contextually:"""
     
     messages.append({"role": "user", "content": structured_prompt})
     
@@ -284,11 +383,18 @@ Now analyze the scammer's message and respond:"""
 
     is_error = raw_response.startswith("Error:")
     
+    # Use contextual fallback instead of random
+    contextual_response = get_contextual_fallback(
+        current_message, 
+        session_id, 
+        conversation_history
+    )
+    
     return {
         "scam_detected": True,
         "scam_type": "unknown",
         "scammer_tactic": "unknown",
-        "strategy": "technical_confusion" if is_error else "feigning_ignorance",
+        "strategy": "contextual_stalling" if not is_error else "technical_confusion",
         "intelligence": {
             "bank_accounts": [],
             "upi_ids": [],
@@ -297,6 +403,6 @@ Now analyze the scammer's message and respond:"""
             "suspicious_keywords": []
         },
         "is_complete": False,
-        "agent_notes": f"LLM Failure: {raw_response[:50]}..." if is_error else "Response parsing failed",
-        "response": get_random_fallback() # Use fallback if totally failed
+        "agent_notes": f"LLM Failure: {raw_response[:50]}..." if is_error else "Response parsing failed - using contextual fallback",
+        "response": contextual_response
     }

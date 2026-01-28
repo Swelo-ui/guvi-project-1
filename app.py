@@ -121,7 +121,7 @@ def honey_pot_chat():
                 hist_intel = extract_all_intelligence(msg.get("text", ""))
                 regex_intel = merge_intelligence(regex_intel, hist_intel)
         
-        # 5. Generate LLM response
+        # 5. Generate LLM response with context awareness
         system_prompt = get_system_prompt(persona)
         extraction_prompt = get_extraction_prompt()
         
@@ -129,7 +129,8 @@ def honey_pot_chat():
             system_prompt=system_prompt,
             conversation_history=conversation_history,
             current_message=incoming_msg,
-            extraction_prompt=extraction_prompt
+            extraction_prompt=extraction_prompt,
+            session_id=session_id  # Pass session_id for response tracking
         )
         
         # 6. Merge LLM-extracted intel with regex intel

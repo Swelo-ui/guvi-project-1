@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from core.persona import generate_persona, get_system_prompt, get_extraction_prompt
-from core.llm_client import generate_agent_response
+from core.llm_client import generate_agent_response, get_random_fallback
 from models.intelligence import extract_all_intelligence, merge_intelligence, has_actionable_intel
 from utils.supabase_client import (
     get_persona, save_persona, update_session_activity,
@@ -182,6 +182,9 @@ def honey_pot_chat():
             "reply": llm_response.get("response", "Haan ji? I am not understanding...")
         }
         
+        if "LLM Failure" in agent_notes:
+             logger.error(f"❌ LLM Error detected: {agent_notes}")
+        
         logger.info(f"💬 Session {session_id}: Responding with strategy '{strategy}'")
         
         return jsonify(response), 200
@@ -199,7 +202,7 @@ def honey_pot_chat():
             },
             "extractedIntelligence": {},
             "agentNotes": "Error occurred, using fallback response",
-            "reply": "Hello? Network is very slow today. Please wait..."
+            "reply": get_random_fallback()
         }), 200
 
 

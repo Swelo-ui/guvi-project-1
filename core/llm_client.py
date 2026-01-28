@@ -101,6 +101,7 @@ from core.conversation_analyzer import (
 )
 
 # Generic fallback messages (used only when context detection fails)
+# These are stalling messages that work in any context
 GENERIC_FALLBACK_MESSAGES = [
     "Acha ji, network is very slow. Please wait, I am trying...",
     "Hello? Can you hear me? My phone is breaking up.",
@@ -111,10 +112,17 @@ GENERIC_FALLBACK_MESSAGES = [
     "Battery is 2%, let me find charger.",
     "My grandson is crying, one moment please.",
     "Sorry beta, I pressed the wrong button I think.",
+    "Wait, doorbell rang. Let me check who is there.",
+    "App is showing loading only. Internet problem.",
+    "Phone is heating up. Let me restart it.",
+    "My neighbour aunty is calling me. One minute.",
+    "I hear beeping sound. Is that from your side?",
+    "Wait wait, I dropped my spectacles somewhere.",
 ]
 
-# Session response tracking to prevent repetition
+# Session response tracking to prevent repetition - GLOBAL across all fallbacks
 _session_responses: Dict[str, List[str]] = {}
+_session_generic_index: Dict[str, int] = {}  # Track index for sequential generic selection
 
 def get_used_responses(session_id: str) -> List[str]:
     """Get list of previously used responses for a session."""
@@ -124,14 +132,41 @@ def track_response(session_id: str, response: str):
     """Track a response as used for this session."""
     if session_id not in _session_responses:
         _session_responses[session_id] = []
-    _session_responses[session_id].append(response)
-    # Keep only last 20 to prevent memory issues
-    if len(_session_responses[session_id]) > 20:
-        _session_responses[session_id] = _session_responses[session_id][-20:]
+    
+    # Only add if not already tracked (avoid duplicates in tracking)
+    if response not in _session_responses[session_id]:
+        _session_responses[session_id].append(response)
+    
+    # Keep only last 30 to prevent memory issues
+    if len(_session_responses[session_id]) > 30:
+        _session_responses[session_id] = _session_responses[session_id][-30:]
 
-def get_random_fallback():
-    """Get a random generic fallback message."""
-    return random.choice(GENERIC_FALLBACK_MESSAGES)
+def get_random_fallback(session_id: str = "default") -> str:
+    """
+    Get a fallback message that hasn't been used in this session.
+    Uses sequential selection to avoid repetition.
+    """
+    used = get_used_responses(session_id)
+    
+    # Filter out already used messages
+    available = [msg for msg in GENERIC_FALLBACK_MESSAGES if msg not in used]
+    
+    if not available:
+        # All used, reset but pick least recently used
+        # Get the index for this session
+        if session_id not in _session_generic_index:
+            _session_generic_index[session_id] = 0
+        
+        idx = _session_generic_index[session_id] % len(GENERIC_FALLBACK_MESSAGES)
+        _session_generic_index[session_id] = idx + 1
+        response = GENERIC_FALLBACK_MESSAGES[idx]
+    else:
+        # Pick randomly from available
+        response = random.choice(available)
+    
+    # Track this response
+    track_response(session_id, response)
+    return response
 
 def get_contextual_fallback(
     scammer_message: str, 
@@ -178,7 +213,7 @@ def get_contextual_fallback(
         
     except Exception as e:
         logger.warning(f"Context analysis failed: {e}, using generic fallback")
-        return get_random_fallback()
+        return get_random_fallback(session_id)
 
 def call_with_fallback(
     messages: List[Dict[str, str]],
@@ -204,9 +239,10 @@ def call_with_fallback(
     if response and not response.startswith("Error"):
         return response
     
-    # Emergency fallback response (Randomized)
+    # Emergency fallback response - note: session_id not available here
+    # This should rarely happen as generate_agent_response handles fallbacks
     logger.error("Both models failed, using emergency fallback")
-    return get_random_fallback()
+    return random.choice(GENERIC_FALLBACK_MESSAGES)
 
 
 def clean_json_string(json_str: str) -> str:
@@ -366,29 +402,37 @@ Now analyze the scammer's message and respond contextually:"""
     except Exception as e:
         logger.error(f"Error during JSON processing: {e}")
     
-    # Fallback: just use the response as-is or randomized fallback logic
-    # If the raw response looks like a normal sentence (no JSON structure), use it directly
-    if "{" not in raw_response and len(raw_response) < 200 and not raw_response.startswith("Error"):
-         # The LLM ignored instructions and just spoke - that's fine for the 'response'
-         return {
-            "scam_detected": True,
-            "scam_type": "unknown",
-            "scammer_tactic": "unknown",
-            "strategy": "conversation_flow",
-            "intelligence": {},
-            "is_complete": False,
-            "agent_notes": "LLM output non-JSON text",
-            "response": raw_response
-        }
-
-    is_error = raw_response.startswith("Error:")
+    # Fallback: use contextual response when LLM doesn't return proper JSON
+    # Even if LLM returns plain text, use our controlled contextual responses for consistency
     
-    # Use contextual fallback instead of random
+    # Check if LLM output looks like a reasonable response (not JSON attempt, not error)
+    llm_gave_text = "{" not in raw_response and len(raw_response) < 200 and not raw_response.startswith("Error")
+    
+    # Always use our contextual fallback for anti-repetition and context awareness
     contextual_response = get_contextual_fallback(
         current_message, 
         session_id, 
         conversation_history
     )
+    
+    if llm_gave_text:
+        # LLM spoke naturally but in wrong format - log for debugging
+        logger.info(f"LLM non-JSON response: {raw_response[:80]}...")
+        # Still use our contextual fallback for consistency
+        return {
+            "scam_detected": True,
+            "scam_type": "unknown",
+            "scammer_tactic": "unknown",
+            "strategy": "contextual_engagement",
+            "intelligence": {},
+            "is_complete": False,
+            "agent_notes": "LLM output non-JSON text - using contextual fallback",
+            "response": contextual_response  # Use contextual instead of raw LLM text
+        }
+
+    is_error = raw_response.startswith("Error:")
+    
+    # contextual_response already obtained above, reuse it
     
     return {
         "scam_detected": True,

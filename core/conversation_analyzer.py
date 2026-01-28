@@ -389,17 +389,28 @@ def extract_scammer_intel(message: str, session: Dict) -> None:
         memory["apps_mentioned"].append(app_match.group(1))
 
 def get_phrase_hash(text: str) -> str:
-    """Get hash of first 5 words to detect similar phrases."""
-    words = text.lower().split()[:5]
+    """Get hash of first 8 words to detect similar phrases (increased from 5)."""
+    words = text.lower().split()[:8]
     return hashlib.md5(" ".join(words).encode()).hexdigest()[:8]
 
 def is_similar_used(session: Dict, response: str) -> bool:
-    """Check if a similar phrase has been used."""
+    """Check if this exact response or similar phrase has been used."""
+    # Check EXACT match first
+    if response in session.get("used_exact_responses", []):
+        return True
+    
+    # Then check phrase hash (for similar starts)
     phrase_hash = get_phrase_hash(response)
     return phrase_hash in session["phrase_hashes"]
 
 def mark_response_used(session: Dict, response: str, response_type: ResponseType):
-    """Mark a response as used in session."""
+    """Mark a response as used in session (both exact and phrase hash)."""
+    # Track exact response
+    if "used_exact_responses" not in session:
+        session["used_exact_responses"] = []
+    session["used_exact_responses"].append(response)
+    
+    # Track phrase hash
     session["phrase_hashes"].add(get_phrase_hash(response))
     session["last_response_type"] = response_type
     session["response_count"] += 1

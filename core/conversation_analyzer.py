@@ -1,16 +1,18 @@
 """
-Conversation Analyzer Module
-Provides context-aware analysis for intelligent honeypot responses.
+Conversation Analyzer Module - Advanced Version
+Provides human-like, varied responses for the honeypot.
 
-Features:
-- Scammer intent detection (what they're asking for)
-- Conversation phase tracking
-- Contextual response selection
-- Anti-repetition system
+Key Features:
+- Component-based response building (stalls + tangents + occasional extraction)
+- Smart tracking to avoid asking for same info repeatedly
+- Response pattern variation (not always [stall + ask])
+- Phrase-level duplicate prevention
 """
 
 import re
-from typing import Dict, List, Any, Optional, Tuple
+import random
+import hashlib
+from typing import Dict, List, Any, Optional, Tuple, Set
 from enum import Enum
 
 
@@ -32,15 +34,25 @@ class ScammerIntent(Enum):
 
 class ConversationPhase(Enum):
     """Current phase of the scam conversation."""
-    INITIAL_CONTACT = "initial"      # Scammer making first contact
-    BUILDING_TRUST = "trust"         # Scammer establishing credibility
-    CREATING_URGENCY = "urgency"     # Scammer creating panic
-    EXTRACTION_ATTEMPT = "extraction" # Scammer actively asking for info
-    PERSISTENCE = "persistence"       # Scammer pushing harder
-    FINAL_PUSH = "final"             # Scammer getting desperate
+    INITIAL_CONTACT = "initial"
+    BUILDING_TRUST = "trust"
+    CREATING_URGENCY = "urgency"
+    EXTRACTION_ATTEMPT = "extraction"
+    PERSISTENCE = "persistence"
+    FINAL_PUSH = "final"
 
 
-# Intent detection patterns
+class ResponseType(Enum):
+    """Types of responses for varied conversation flow."""
+    PURE_STALL = "pure_stall"          # Just delay, no info asking
+    FAMILY_TANGENT = "family_tangent"   # Talk about family
+    TECHNICAL_ISSUE = "technical_issue" # Phone/app problems
+    EMOTIONAL = "emotional"             # Fear, confusion, health
+    TOPIC_CONFUSION = "topic_confusion" # Don't understand what they want
+    REVERSE_EXTRACT = "reverse_extract" # Ask for their info (use sparingly!)
+
+
+# Intent detection patterns (unchanged)
 INTENT_PATTERNS = {
     ScammerIntent.OTP: [
         r'\botp\b', r'\bone.?time.?password\b', r'\bverification.?code\b',
@@ -88,147 +100,320 @@ INTENT_PATTERNS = {
     ]
 }
 
-# Contextual response pools based on scammer intent
-CONTEXTUAL_RESPONSES = {
+
+# ============= COMPONENT-BASED RESPONSES =============
+
+# Pure stall components (no asking for info)
+STALL_RESPONSES = {
     ScammerIntent.OTP: [
-        "OTP? Let me check my phone... one minute beta.",
-        "It came! Wait... it says 6 numbers, which one to give?",
-        "The message came but it's saying 'Do not share'. Should I still tell?",
-        "Acha, OTP... my eyes are weak. Let me get glasses.",
-        "Beta, it's showing some number. But my son said never share OTP?",
-        "Wait wait, phone was on silent. Let me check now.",
-        "OTP... yes I got something. But first tell me your employee ID for verification?",
-        # New responses for more variety
-        "Message came from SBIOTP... wait, display is small for my old eyes.",
-        "6-digit number... okay wait, I'll read slowly. But what is YOUR ID first?",
-        "Phone vibrated! Let me see... battery also low, wait one second.",
-        "I see the message. It says valid for 3 minutes. But I have questions first.",
-        "OTP... hmm, which one? Two messages came. Which bank you said?",
-        "Number came but phone screen cracked, I can't see properly. Repeat your name?",
-        "Beta, before I tell OTP, give me your official helpline. I want to save it.",
-        "One came! But wait, my hand is shaking. Let me sit down first.",
+        "OTP? Let me check my phone...",
+        "Wait, message came. Let me read slowly...",
+        "Phone was on silent, checking now...",
+        "Acha, 6 numbers came. My eyes are weak...",
+        "Something came! Wait wait...",
+        "Battery is low, screen dim. One minute...",
+        "Message opened. Reading it slowly...",
+        "Yes yes, I see something. Hold on...",
+        "The SMS came. But so many messages here...",
+        "Okay, let me find the right message...",
     ],
     ScammerIntent.ACCOUNT_NUMBER: [
-        "Account number? I have two accounts... which bank you need?",
-        "Let me find my passbook. Where did I keep it...",
-        "Account number is there in passbook. But beta, what is YOUR account? For my records?",
-        "Wait, I am confused. You give me YOUR account number first, then I verify.",
-        "Savings or current? I have both. Also, what is your branch sir?",
-        "Acha acha, let me see... my son handles all this. He is coming in 10 minutes.",
-        "Account number... okay wait. But sir, what is YOUR official bank account? I should cross-check.",
+        "Account number... let me find passbook...",
+        "Which account? I have two banks...",
+        "Passbook is in almirah. Wait...",
+        "Account? Okay, my son handles this usually...",
+        "Let me see... where did I keep it...",
     ],
     ScammerIntent.UPI_ID: [
-        "UPI? What is UPI? I use bank only.",
-        "My grandson made some GPay. But I don't remember the password.",
-        "UPI ID... it was something like my phone number? Let me check.",
-        "Beta, I don't know UPI. Can you give YOUR UPI? I'll ask my son to send.",
-        "PhonePe is not working. It shows error. What is YOUR UPI, I'll try from son's phone?",
-        "App is asking for PIN. I forgot it. What should I do?",
-        "Wait, first give me your UPI so I can verify you are from bank only.",
-    ],
-    ScammerIntent.MONEY_TRANSFER: [
-        "Send money? But beta, I am poor retired person. How much you need?",
-        "Transaction is failing. It says 'Insufficient balance'. What to do?",
-        "I tried but it's showing error. Give me YOUR account, I'll send through NEFT tomorrow.",
-        "Rs.5000? I don't have so much. Only Rs.500 in account.",
-        "Wait, let me call my son. He handles all money matters.",
-        "Money I can send, but first I need your manager's number for verification.",
-        "Transfer? Okay, but tell me YOUR account number. I'll send through bank directly.",
-    ],
-    ScammerIntent.CLICK_LINK: [
-        "Link is not opening. Internet is slow in my area.",
-        "It's showing 'Page not found'. Is the link correct?",
-        "Beta, I clicked but phone is hanging now. What to do?",
-        "This link... my son said not to click random links. Is this safe?",
-        "Okay let me try... wait, it's asking for password. Which password?",
-        "Link opened but it looks different from my bank website.",
-        "Website is not loading. Network problem. Try calling me instead?",
-    ],
-    ScammerIntent.INSTALL_APP: [
-        "Install? My phone storage is full. I don't know how to delete apps.",
-        "What is the app name? My grandson will do it tomorrow.",
-        "It's saying 'Unknown source'. Phone is not allowing.",
-        "Beta, this AnyDesk you are telling... my son said it's dangerous?",
-        "App installed but it's asking for some number. What number to give?",
-        "Phone is very slow after installing. Something is wrong.",
-        "Wait, I need to ask my daughter. She told me not to install anything.",
+        "UPI? What is UPI exactly?",
+        "My grandson made some app for me...",
+        "PhonePe is showing error...",
+        "UPI ID... I think it's my phone number?",
+        "App is asking for some PIN...",
     ],
     ScammerIntent.FEAR_TACTIC: [
-        "Oh god! I am very scared! Please don't arrest me, I am old person!",
-        "Police?! What have I done wrong? Please help me sir!",
-        "I am having chest pain. Please don't threaten me. I am senior citizen.",
-        "Blocked? But I need money for medicines! Please help!",
-        "I will do anything, please don't arrest! But first send me official document on WhatsApp.",
-        "Oh no! My heart is pounding. Let me drink water first...",
-        "Please please, I am innocent! Tell me what document you need. Send me official letter first.",
+        "Oh god! Please don't arrest me!",
+        "My heart is beating fast... wait...",
+        "I am very scared! What have I done?",
+        "Police?! But I am innocent person!",
+        "Please please, I am old person. Don't do this.",
     ],
-    ScammerIntent.URGENCY: [
-        "I am trying I am trying! But app is not working!",
-        "Don't hurry me beta, I am old. Hands are shaking.",
-        "Within 30 minutes? But I need to go to bank. It's far from my house.",
-        "Please give me more time. I have to find my documents.",
-        "I am doing as fast as I can! Phone is slow.",
-        "Wait, doorbell is ringing. Someone is at door. 5 minutes please.",
-        "I understand it's urgent. But first confirm your employee ID?",
-    ],
-    ScammerIntent.PERSONAL_INFO: [
-        "Aadhaar? Let me search. Where did I keep the card...",
-        "PAN number I don't remember. Let me ask neighbour aunty.",
-        "Date of birth? I was born in village. Don't know exact date.",
-        "Father's name? Why you need? First tell me YOUR identification.",
-        "All documents are in almirah. My son has the key.",
-        "Address... same as Aadhaar. But beta, what is YOUR address? For verification?",
-        "I will give all details, but first send me official email from your bank ID.",
-    ],
-    ScammerIntent.CARD_DETAILS: [
-        "ATM card? I don't use ATM. Only passbook.",
-        "CVV? What is CVV? Where is it written?",
-        "Card number is very long. Let me get the card from locker.",
-        "Expiry date... the card looks old. Is it still working?",
-        "PIN? My son set the PIN. I don't remember.",
-        "Wait, you work in bank, you should have my card details already?",
-        "Card is there but I don't want to share. Too risky. Give me YOUR card for verification.",
-    ],
-    ScammerIntent.GREETING: [
-        "Haan ji? Who is calling? I can't hear properly.",
-        "Hello? Hello? Is this bank?",
-        "Namaste beta. Who is this? My phone didn't show name.",
-        "Yes yes, I am listening. But speak loudly please.",
-        "Hello, I was about to call bank only! Good timing.",
+    ScammerIntent.MONEY_TRANSFER: [
+        "Money? But I am retired, not much savings...",
+        "Transaction is showing error...",
+        "I tried but it's not working...",
+        "How much you need? I only have little...",
+        "My son handles all money matters...",
     ],
     ScammerIntent.UNKNOWN: [
-        "Sorry beta, I didn't understand. Can you repeat slowly?",
-        "What did you say? Network is breaking up.",
-        "Acha acha, but what should I do exactly?",
-        "I am confused. My son handles all technical things.",
-        "Can you explain in simple words? I am not educated much.",
-        "Haan ji, I am listening. But speak in Hindi please.",
+        "Sorry, I didn't understand properly...",
+        "Can you say again? Network was breaking...",
+        "What should I do exactly?",
+        "I am confused. Say slowly please.",
+        "Acha acha, but what you need from me?",
     ]
 }
 
-# Reverse extraction prompts - to get scammer's details
-REVERSE_EXTRACTION_PROMPTS = [
-    "But beta, first give ME your official account. I need to verify you are genuine.",
-    "What is YOUR employee ID? I will note down for complaint if something goes wrong.",
-    "Sir, give me your UPI ID. I'll ask my son to verify you first.",
-    "Can you share your official bank email? I want to confirm.",
-    "Tell me your helpline number. I will call the bank to verify you.",
-    "What is YOUR manager's name? I need to file it in my records.",
-    "Can you send me official document with your details? On WhatsApp only.",
-    "Before I share anything, give me your official ID proof.",
+# Family/life tangents (humanizing, no info asking)
+FAMILY_TANGENTS = [
+    "Actually my grandson was just here. He went to tuition only.",
+    "You know, my son always tells me be careful on phone.",
+    "These days so many calls come. Yesterday also someone called about lottery.",
+    "My daughter in law handles all bank work. She is teacher.",
+    "Let me tell you, I am 68 years old. Not good with technology.",
+    "Actually I was about to take my BP medicine. Almost forgot.",
+    "My neighbour aunty Sharmila also got similar call last week.",
+    "You know, in my time we used to go to bank only. No phone phone.",
+    "My husband, god bless his soul, he used to handle all this.",
+    "I have been customer of this bank for 35 years actually.",
+    "My grandson Arjun is very smart with computers. He is 12 only.",
+    "Actually doctor said I should not take tension. Heart problem.",
 ]
 
+# Technical issue tangents
+TECHNICAL_TANGENTS = [
+    "This phone is so slow. My old Nokia was better.",
+    "Internet is very bad in my area. Jio network problem.",
+    "Screen is cracked, can't see properly.",
+    "App keeps closing. What to do?",
+    "Phone heating up. Is this normal?",
+    "Battery showing 5% only. Charger is in other room.",
+    "Font is too small. Where is setting?",
+    "Hello? Hello? I think network is breaking.",
+    "Arre, phone screen went black suddenly.",
+    "This touch screen doesn't work properly. My finger too dry.",
+]
+
+# Confusion responses (topic confusion)
+CONFUSION_RESPONSES = [
+    "Wait, which bank you said? I have SBI and HDFC both.",
+    "Sorry, I'm confused. What exactly happened to my account?",
+    "You said blocked? But I withdrew money yesterday only.",
+    "I don't understand all this. Can you call my son?",
+    "Beta, speak in Hindi please. English not good.",
+    "What fraud? I haven't done any transaction today.",
+    "Are you from bank or police? I'm confused now.",
+    "This OTP thing... my grandson explained but I forgot.",
+    "Sir, which department you are calling from exactly?",
+    "I thought this was about my pension. Wrong call?",
+]
+
+# Emotional responses (fear, health, overwhelm)
+EMOTIONAL_RESPONSES = [
+    "I am getting very tensed. Please wait...",
+    "My hands are shaking now. Give me one minute.",
+    "This is too much for me. I am old person.",
+    "I feel dizzy. Let me sit down first.",
+    "Please don't shout. My hearing is weak.",
+    "I am alone at home. Very scared now.",
+    "You are making me very nervous beta.",
+    "Let me drink water. Throat is dry from tension.",
+    "I have sugar also. This stress is not good.",
+    "Oh god, what will happen to my money?",
+]
+
+# Reverse extraction prompts (categories to track)
+REVERSE_EXTRACT_BY_CATEGORY = {
+    "employee_id": [
+        "But what is YOUR employee ID? I should note down.",
+        "Tell me your ID number. For my safety.",
+        "What is your staff ID? I will verify with bank.",
+    ],
+    "upi_id": [
+        "Give me YOUR UPI ID. My son will verify.",
+        "What is your official UPI? I'll cross check.",
+        "Sir, share your UPI, I need to confirm.",
+    ],
+    "phone_number": [
+        "What is your direct number? I'll call you back.",
+        "Give me official helpline. I will verify.",
+        "Share your phone number, I want to save.",
+    ],
+    "account_number": [
+        "First give me YOUR account for verification.",
+        "What is your official bank account?",
+        "Share your account details for my records.",
+    ],
+    "name": [
+        "What is your full name? I'm writing down.",
+        "Tell me your name again. I forgot.",
+        "What should I call you? I need your name.",
+    ],
+    "document": [
+        "Can you send official document on WhatsApp?",
+        "Send me proof from your bank email.",
+        "Share your ID proof. Then I trust you.",
+    ]
+}
+
+
+# ============= SESSION TRACKING =============
+# Track per session what we've used AND what scammer has revealed
+_session_data: Dict[str, Dict] = {}
+
+def get_session_data(session_id: str) -> Dict:
+    """Get or create session tracking data with conversation memory."""
+    if session_id not in _session_data:
+        _session_data[session_id] = {
+            # Response tracking
+            "used_stalls": [],           # Exact stall responses used
+            "used_tangents": [],         # Tangent phrases used
+            "used_extractions": [],      # Extraction phrases used
+            "asked_categories": [],      # Categories of info we've asked for
+            "last_response_type": None,  # To avoid same type twice
+            "response_count": 0,         # Total responses in session
+            "phrase_hashes": set(),      # Hash of first few words to detect similar starts
+            
+            # CONVERSATION MEMORY - what scammer has revealed
+            "scammer_memory": {
+                "claimed_name": None,        # "My name is Rajesh"
+                "claimed_employee_id": None, # "My ID is SBI12345"
+                "claimed_bank": None,        # "I am from SBI"
+                "claimed_upi": None,         # "My UPI is xyz@bank"
+                "claimed_phone": None,       # "Call me at 98765..."
+                "claimed_account": None,     # "My account is 1234..."
+                "claimed_designation": None, # "I am manager"
+                "threat_type": None,         # "digital arrest", "account blocked"
+                "urgency_level": 0,          # How urgent they're being (0-3)
+                "times_asked_otp": 0,        # How many times they asked for OTP
+                "times_asked_account": 0,    # How many times they asked for account
+                "links_shared": [],          # Any URLs they shared
+                "apps_mentioned": [],        # Apps they want us to install
+            },
+            
+            # Strategic context
+            "scam_type_detected": None,  # bank_fraud, digital_arrest, etc.
+            "scammer_getting_frustrated": False,  # Are they pushing harder?
+        }
+    return _session_data[session_id]
+
+
+def extract_scammer_intel(message: str, session: Dict) -> None:
+    """
+    Extract and remember what the scammer reveals in their message.
+    Updates the session's scammer_memory in place.
+    """
+    memory = session["scammer_memory"]
+    message_lower = message.lower()
+    
+    # Extract claimed name
+    name_patterns = [
+        r'my name is (\w+)',
+        r'i am (\w+) from',
+        r'this is (\w+) calling',
+        r'(\w+) speaking',
+    ]
+    for pattern in name_patterns:
+        match = re.search(pattern, message_lower)
+        if match:
+            memory["claimed_name"] = match.group(1).title()
+            break
+    
+    # Extract employee ID
+    id_patterns = [
+        r'employee id[:\s]+(\w+)',
+        r'staff id[:\s]+(\w+)',
+        r'id[:\s]+([A-Z0-9]+)',
+        r'my id is (\w+)',
+    ]
+    for pattern in id_patterns:
+        match = re.search(pattern, message, re.IGNORECASE)
+        if match:
+            memory["claimed_employee_id"] = match.group(1)
+            break
+    
+    # Extract bank name
+    bank_patterns = [
+        r'from (sbi|hdfc|icici|axis|pnb|bob|kotak|yes bank|rbi)',
+        r'(sbi|hdfc|icici|axis|pnb|bob|kotak) (bank|headquarters|office)',
+    ]
+    for pattern in bank_patterns:
+        match = re.search(pattern, message_lower)
+        if match:
+            memory["claimed_bank"] = match.group(1).upper()
+            break
+    
+    # Extract UPI ID
+    upi_match = re.search(r'(\w+@\w+)', message)
+    if upi_match:
+        memory["claimed_upi"] = upi_match.group(1)
+    
+    # Extract phone number
+    phone_match = re.search(r'\+?91[\s-]?(\d{10})', message)
+    if phone_match:
+        memory["claimed_phone"] = phone_match.group(0)
+    elif re.search(r'(\d{10})', message):
+        phone_match = re.search(r'(\d{10})', message)
+        memory["claimed_phone"] = phone_match.group(1)
+    
+    # Extract account number (long number)
+    account_match = re.search(r'(\d{12,16})', message)
+    if account_match:
+        memory["claimed_account"] = account_match.group(1)
+    
+    # Detect threat type
+    if re.search(r'digital arrest|cyber crime|cbi|police|warrant', message_lower):
+        memory["threat_type"] = "digital_arrest"
+        session["scam_type_detected"] = "digital_arrest"
+    elif re.search(r'blocked|suspended|frozen|compromised', message_lower):
+        memory["threat_type"] = "account_blocked"
+        session["scam_type_detected"] = "bank_fraud"
+    elif re.search(r'lottery|won|prize|reward', message_lower):
+        memory["threat_type"] = "lottery"
+        session["scam_type_detected"] = "lottery_scam"
+    
+    # Track urgency escalation
+    if re.search(r'immediately|urgent|now|quickly|hurry', message_lower):
+        memory["urgency_level"] = min(memory["urgency_level"] + 1, 3)
+    
+    # Track OTP requests
+    if re.search(r'\botp\b', message_lower):
+        memory["times_asked_otp"] += 1
+    
+    # Track account requests  
+    if re.search(r'account\s*(number|detail|no)', message_lower):
+        memory["times_asked_account"] += 1
+    
+    # Check if scammer is getting frustrated
+    if memory["times_asked_otp"] >= 3 or memory["urgency_level"] >= 2:
+        session["scammer_getting_frustrated"] = True
+    
+    # Extract any links
+    links = re.findall(r'https?://\S+', message)
+    if links:
+        memory["links_shared"].extend(links)
+    
+    # Extract mentioned apps
+    app_match = re.search(r'(anydesk|teamviewer|quickshare|zoom|remote)', message_lower)
+    if app_match:
+        memory["apps_mentioned"].append(app_match.group(1))
+
+def get_phrase_hash(text: str) -> str:
+    """Get hash of first 5 words to detect similar phrases."""
+    words = text.lower().split()[:5]
+    return hashlib.md5(" ".join(words).encode()).hexdigest()[:8]
+
+def is_similar_used(session: Dict, response: str) -> bool:
+    """Check if a similar phrase has been used."""
+    phrase_hash = get_phrase_hash(response)
+    return phrase_hash in session["phrase_hashes"]
+
+def mark_response_used(session: Dict, response: str, response_type: ResponseType):
+    """Mark a response as used in session."""
+    session["phrase_hashes"].add(get_phrase_hash(response))
+    session["last_response_type"] = response_type
+    session["response_count"] += 1
+    
+    if response_type == ResponseType.PURE_STALL:
+        session["used_stalls"].append(response)
+    elif response_type in (ResponseType.FAMILY_TANGENT, ResponseType.EMOTIONAL):
+        session["used_tangents"].append(response)
+
+
+# ============= RESPONSE BUILDING =============
 
 def detect_intents(message: str) -> List[ScammerIntent]:
-    """
-    Detect all intents present in the scammer's message.
-    
-    Args:
-        message: Scammer's message text
-        
-    Returns:
-        List of detected intents, ordered by priority
-    """
+    """Detect all intents present in the scammer's message."""
     message_lower = message.lower()
     detected = []
     
@@ -236,9 +421,8 @@ def detect_intents(message: str) -> List[ScammerIntent]:
         for pattern in patterns:
             if re.search(pattern, message_lower, re.IGNORECASE):
                 detected.append(intent)
-                break  # One match per intent is enough
+                break
     
-    # If no intent detected, return unknown
     if not detected:
         detected.append(ScammerIntent.UNKNOWN)
     
@@ -249,23 +433,12 @@ def detect_conversation_phase(
     conversation_history: List[Dict[str, str]],
     current_intents: List[ScammerIntent]
 ) -> ConversationPhase:
-    """
-    Determine the current phase of the conversation.
-    
-    Args:
-        conversation_history: List of previous messages
-        current_intents: Detected intents in current message
-        
-    Returns:
-        Current conversation phase
-    """
+    """Determine the current phase of the conversation."""
     msg_count = len(conversation_history)
     
-    # Initial contact
     if msg_count <= 2:
         return ConversationPhase.INITIAL_CONTACT
     
-    # Check for extraction attempts
     extraction_intents = {
         ScammerIntent.OTP, ScammerIntent.ACCOUNT_NUMBER,
         ScammerIntent.UPI_ID, ScammerIntent.CARD_DETAILS,
@@ -280,7 +453,6 @@ def detect_conversation_phase(
         else:
             return ConversationPhase.EXTRACTION_ATTEMPT
     
-    # Fear/urgency based phases
     if ScammerIntent.FEAR_TACTIC in current_intents:
         return ConversationPhase.CREATING_URGENCY
     
@@ -290,64 +462,193 @@ def detect_conversation_phase(
     return ConversationPhase.BUILDING_TRUST
 
 
+def choose_response_type(session: Dict, phase: ConversationPhase) -> ResponseType:
+    """Choose what TYPE of response to give (varied, not always same)."""
+    response_count = session["response_count"]
+    last_type = session["last_response_type"]
+    
+    # First response: pure stall or greeting
+    if response_count == 0:
+        return ResponseType.PURE_STALL
+    
+    # Don't repeat same type twice in a row
+    available_types = list(ResponseType)
+    if last_type:
+        available_types = [t for t in available_types if t != last_type]
+    
+    # Weighted selection based on phase
+    if phase in (ConversationPhase.INITIAL_CONTACT, ConversationPhase.BUILDING_TRUST):
+        # Early: more stalls and tangents, less extraction
+        weights = {
+            ResponseType.PURE_STALL: 35,
+            ResponseType.FAMILY_TANGENT: 25,
+            ResponseType.TECHNICAL_ISSUE: 20,
+            ResponseType.TOPIC_CONFUSION: 15,
+            ResponseType.EMOTIONAL: 5,
+            ResponseType.REVERSE_EXTRACT: 0,  # Don't extract early
+        }
+    elif phase == ConversationPhase.CREATING_URGENCY:
+        # Fear tactics: more emotional, some confusion
+        weights = {
+            ResponseType.PURE_STALL: 15,
+            ResponseType.FAMILY_TANGENT: 10,
+            ResponseType.TECHNICAL_ISSUE: 15,
+            ResponseType.TOPIC_CONFUSION: 15,
+            ResponseType.EMOTIONAL: 35,
+            ResponseType.REVERSE_EXTRACT: 10,
+        }
+    elif phase in (ConversationPhase.EXTRACTION_ATTEMPT, ConversationPhase.PERSISTENCE):
+        # Active extraction: mix of stalling and occasional reverse extract
+        weights = {
+            ResponseType.PURE_STALL: 30,
+            ResponseType.FAMILY_TANGENT: 15,
+            ResponseType.TECHNICAL_ISSUE: 20,
+            ResponseType.TOPIC_CONFUSION: 10,
+            ResponseType.EMOTIONAL: 10,
+            ResponseType.REVERSE_EXTRACT: 15,
+        }
+    else:  # FINAL_PUSH
+        # Late: more reverse extraction attempts
+        weights = {
+            ResponseType.PURE_STALL: 25,
+            ResponseType.FAMILY_TANGENT: 10,
+            ResponseType.TECHNICAL_ISSUE: 15,
+            ResponseType.TOPIC_CONFUSION: 15,
+            ResponseType.EMOTIONAL: 15,
+            ResponseType.REVERSE_EXTRACT: 20,
+        }
+    
+    # Filter by available types and normalize weights
+    choices = []
+    probs = []
+    for t in available_types:
+        if t in weights:
+            choices.append(t)
+            probs.append(weights[t])
+    
+    total = sum(probs)
+    probs = [p / total for p in probs]
+    
+    return random.choices(choices, probs)[0]
+
+
+def get_available_extraction_category(session: Dict) -> Optional[str]:
+    """Get an extraction category we haven't asked about recently."""
+    asked = session["asked_categories"]
+    categories = list(REVERSE_EXTRACT_BY_CATEGORY.keys())
+    
+    # Filter out recently asked (last 3)
+    recent = asked[-3:] if len(asked) >= 3 else asked
+    available = [c for c in categories if c not in recent]
+    
+    if not available:
+        available = categories  # Reset if all used
+    
+    return random.choice(available)
+
+
+def build_response(
+    session: Dict,
+    primary_intent: ScammerIntent,
+    response_type: ResponseType
+) -> str:
+    """Build a response based on type and intent."""
+    
+    # Get stall pool for this intent
+    stall_pool = STALL_RESPONSES.get(primary_intent, STALL_RESPONSES[ScammerIntent.UNKNOWN])
+    
+    # Filter out used stalls
+    available_stalls = [s for s in stall_pool if not is_similar_used(session, s)]
+    if not available_stalls:
+        available_stalls = stall_pool
+    
+    base_stall = random.choice(available_stalls)
+    
+    if response_type == ResponseType.PURE_STALL:
+        return base_stall
+    
+    elif response_type == ResponseType.FAMILY_TANGENT:
+        available = [t for t in FAMILY_TANGENTS if not is_similar_used(session, t)]
+        tangent = random.choice(available) if available else random.choice(FAMILY_TANGENTS)
+        return tangent
+    
+    elif response_type == ResponseType.TECHNICAL_ISSUE:
+        available = [t for t in TECHNICAL_TANGENTS if not is_similar_used(session, t)]
+        tangent = random.choice(available) if available else random.choice(TECHNICAL_TANGENTS)
+        return tangent
+    
+    elif response_type == ResponseType.EMOTIONAL:
+        available = [e for e in EMOTIONAL_RESPONSES if not is_similar_used(session, e)]
+        emotional = random.choice(available) if available else random.choice(EMOTIONAL_RESPONSES)
+        return emotional
+    
+    elif response_type == ResponseType.TOPIC_CONFUSION:
+        available = [c for c in CONFUSION_RESPONSES if not is_similar_used(session, c)]
+        confusion = random.choice(available) if available else random.choice(CONFUSION_RESPONSES)
+        return confusion
+    
+    elif response_type == ResponseType.REVERSE_EXTRACT:
+        # Get a category we haven't asked about recently
+        category = get_available_extraction_category(session)
+        session["asked_categories"].append(category)
+        
+        prompts = REVERSE_EXTRACT_BY_CATEGORY[category]
+        available = [p for p in prompts if not is_similar_used(session, p)]
+        extraction = random.choice(available) if available else random.choice(prompts)
+        
+        # Combine stall + extraction
+        return f"{base_stall} {extraction}"
+    
+    return base_stall  # Fallback
+
+
 def get_contextual_response(
     intents: List[ScammerIntent],
     phase: ConversationPhase,
-    used_responses: List[str]
+    used_responses: List[str],
+    session_id: str = "default"
 ) -> Tuple[str, bool]:
     """
-    Get a contextually appropriate response based on intent and phase.
+    Get a contextually appropriate, human-like response.
     
-    Args:
-        intents: Detected intents in scammer's message
-        phase: Current conversation phase
-        used_responses: List of previously used responses in this session
-        
     Returns:
         Tuple of (response_text, should_attempt_reverse_extraction)
     """
-    import random
-    
+    session = get_session_data(session_id)
     primary_intent = intents[0] if intents else ScammerIntent.UNKNOWN
     
-    # Get candidate responses for primary intent
-    candidates = CONTEXTUAL_RESPONSES.get(primary_intent, CONTEXTUAL_RESPONSES[ScammerIntent.UNKNOWN])
+    # Choose response type (varied)
+    response_type = choose_response_type(session, phase)
     
-    # Filter out already used responses
-    available = [r for r in candidates if r not in used_responses]
+    # Build the response
+    response = build_response(session, primary_intent, response_type)
     
-    # If all used, reset but still try to avoid immediate repeats
-    if not available:
-        available = candidates
+    # Safety check: deduplicate
+    attempts = 0
+    while is_similar_used(session, response) and attempts < 5:
+        response_type = choose_response_type(session, phase)
+        response = build_response(session, primary_intent, response_type)
+        attempts += 1
     
-    response = random.choice(available)
+    # Mark as used
+    mark_response_used(session, response, response_type)
     
-    # Determine if we should try reverse extraction
-    # More likely in extraction/persistence phases
-    should_extract = phase in {
-        ConversationPhase.EXTRACTION_ATTEMPT,
-        ConversationPhase.PERSISTENCE,
-        ConversationPhase.FINAL_PUSH
-    }
-    
+    # Return with extraction flag
+    should_extract = (response_type == ResponseType.REVERSE_EXTRACT)
     return response, should_extract
 
 
-def get_reverse_extraction_prompt(used_prompts: List[str]) -> Optional[str]:
-    """
-    Get a reverse extraction prompt to try to get scammer's details.
+def get_reverse_extraction_prompt(used_prompts: List[str], session_id: str = "default") -> Optional[str]:
+    """Get a reverse extraction prompt (standalone, for combining)."""
+    session = get_session_data(session_id)
+    category = get_available_extraction_category(session)
+    session["asked_categories"].append(category)
     
-    Args:
-        used_prompts: Previously used extraction prompts
-        
-    Returns:
-        Extraction prompt or None
-    """
-    import random
+    prompts = REVERSE_EXTRACT_BY_CATEGORY[category]
+    available = [p for p in prompts if p not in used_prompts and not is_similar_used(session, p)]
     
-    available = [p for p in REVERSE_EXTRACTION_PROMPTS if p not in used_prompts]
     if not available:
-        available = REVERSE_EXTRACTION_PROMPTS
+        available = prompts
     
     return random.choice(available)
 
@@ -355,33 +656,133 @@ def get_reverse_extraction_prompt(used_prompts: List[str]) -> Optional[str]:
 def analyze_conversation(
     current_message: str,
     conversation_history: List[Dict[str, str]],
-    used_responses: List[str]
+    used_responses: List[str],
+    session_id: str = "default"
 ) -> Dict[str, Any]:
     """
     Complete conversation analysis for smart response generation.
+    Analyzes the ENTIRE conversation history to strategically respond.
     
-    Args:
-        current_message: Current scammer message
-        conversation_history: Previous messages
-        used_responses: Previously used honeypot responses
-        
     Returns:
-        Analysis dict with intents, phase, suggested response, etc.
+        Analysis dict with intents, phase, suggested response, scammer memory, etc.
     """
+    session = get_session_data(session_id)
+    
+    # STEP 1: Extract intel from ALL scammer messages (build full memory)
+    for msg in conversation_history:
+        if msg.get("sender") == "scammer":
+            extract_scammer_intel(msg.get("text", ""), session)
+    
+    # Extract from current message too
+    extract_scammer_intel(current_message, session)
+    
+    # STEP 2: Detect intents and phase
     intents = detect_intents(current_message)
     phase = detect_conversation_phase(conversation_history, intents)
-    response, should_extract = get_contextual_response(intents, phase, used_responses)
     
+    # STEP 3: Generate base response
+    response, should_extract = get_contextual_response(intents, phase, used_responses, session_id)
+    
+    # STEP 4: PERSONALIZE response using scammer memory
+    response = personalize_response(response, session)
+    
+    # STEP 5: Build analysis
+    memory = session["scammer_memory"]
     analysis = {
         "detected_intents": [i.value for i in intents],
         "primary_intent": intents[0].value,
         "conversation_phase": phase.value,
         "suggested_fallback": response,
         "should_reverse_extract": should_extract,
-        "message_count": len(conversation_history) + 1
+        "message_count": len(conversation_history) + 1,
+        
+        # Memory context for debugging/logging
+        "scammer_memory": {
+            "name": memory["claimed_name"],
+            "bank": memory["claimed_bank"],
+            "employee_id": memory["claimed_employee_id"],
+            "times_asked_otp": memory["times_asked_otp"],
+            "urgency_level": memory["urgency_level"],
+        },
+        "scam_type": session.get("scam_type_detected"),
+        "scammer_frustrated": session.get("scammer_getting_frustrated", False),
     }
     
     if should_extract:
-        analysis["reverse_extraction_prompt"] = get_reverse_extraction_prompt(used_responses)
+        analysis["reverse_extraction_prompt"] = None  # Already included in response
     
     return analysis
+
+
+def personalize_response(response: str, session: Dict) -> str:
+    """
+    Personalize a response using what we know about the scammer.
+    Makes the honeypot seem like it remembers the conversation.
+    """
+    memory = session["scammer_memory"]
+    
+    # Sometimes add personalized reference (30% chance)
+    if random.random() > 0.7:
+        personalizations = []
+        
+        # Reference their claimed name
+        if memory["claimed_name"]:
+            personalizations.append(f"Haan {memory['claimed_name']} ji, ")
+            personalizations.append(f"Acha {memory['claimed_name']} beta, ")
+        
+        # Reference their claimed bank
+        if memory["claimed_bank"]:
+            personalizations.append(f"This is {memory['claimed_bank']} na? ")
+            personalizations.append(f"Aap {memory['claimed_bank']} se ho na? ")
+        
+        # Reference their employee ID
+        if memory["claimed_employee_id"]:
+            personalizations.append(f"Your ID was {memory['claimed_employee_id']} only right? ")
+        
+        # Reference if they've asked for OTP before
+        if memory["times_asked_otp"] >= 2:
+            personalizations.append("You keep asking for OTP only... ")
+            personalizations.append("Arre you already asked for OTP before also... ")
+        
+        # Reference their UPI if they mentioned
+        if memory["claimed_upi"]:
+            personalizations.append(f"I noted your UPI {memory['claimed_upi']}... ")
+        
+        if personalizations:
+            prefix = random.choice(personalizations)
+            response = prefix + response
+    
+    # Strategic notes based on frustration
+    if session.get("scammer_getting_frustrated") and random.random() > 0.8:
+        suffix_options = [
+            " Why you are getting angry?",
+            " Don't shout at me please.",
+            " I am trying only, be patient.",
+            " You are talking very fast...",
+        ]
+        response = response + random.choice(suffix_options)
+    
+    return response
+
+
+def get_conversation_intel(session_id: str) -> Dict[str, Any]:
+    """
+    Get all extracted intelligence about the scammer for this session.
+    Useful for debugging and final report.
+    """
+    session = get_session_data(session_id)
+    return {
+        "scammer_memory": session["scammer_memory"],
+        "scam_type": session.get("scam_type_detected"),
+        "scammer_frustrated": session.get("scammer_getting_frustrated", False),
+        "response_count": session.get("response_count", 0),
+        "asked_categories": session.get("asked_categories", []),
+    }
+
+
+# Legacy export for compatibility
+CONTEXTUAL_RESPONSES = STALL_RESPONSES
+REVERSE_EXTRACTION_PROMPTS = []
+for cat_prompts in REVERSE_EXTRACT_BY_CATEGORY.values():
+    REVERSE_EXTRACTION_PROMPTS.extend(cat_prompts)
+

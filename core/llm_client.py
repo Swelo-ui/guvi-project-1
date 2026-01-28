@@ -174,7 +174,8 @@ def get_contextual_fallback(
     conversation_history: List[Dict[str, str]] = None
 ) -> str:
     """
-    Get a context-aware fallback based on what the scammer is asking.
+    Get a context-aware, human-like fallback based on what the scammer is asking.
+    Uses component-based response building with varied response types.
     
     Args:
         scammer_message: The scammer's current message
@@ -182,7 +183,7 @@ def get_contextual_fallback(
         conversation_history: Previous messages in conversation
         
     Returns:
-        Contextually appropriate response
+        Contextually appropriate, varied response
     """
     if conversation_history is None:
         conversation_history = []
@@ -190,23 +191,18 @@ def get_contextual_fallback(
     used_responses = get_used_responses(session_id)
     
     try:
-        # Analyze the conversation for context
+        # Analyze the conversation for context - pass session_id for smart tracking
         analysis = analyze_conversation(
             scammer_message, 
             conversation_history, 
-            used_responses
+            used_responses,
+            session_id  # Pass session_id for deduplication
         )
         
-        # Get the contextual response
+        # Get the contextual response (already includes extraction if appropriate)
         response = analysis.get("suggested_fallback", "")
         
-        # Optionally append reverse extraction if appropriate
-        if analysis.get("should_reverse_extract") and random.random() > 0.5:
-            reverse_prompt = analysis.get("reverse_extraction_prompt", "")
-            if reverse_prompt:
-                response = f"{response} {reverse_prompt}"
-        
-        # Track this response
+        # Track this response in our local tracker too
         track_response(session_id, response)
         
         return response

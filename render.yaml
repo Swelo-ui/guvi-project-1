@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: guvi-honeypot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: HONEYPOT_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: google/gemini-2.0-flash-exp:free
+      - key: OPENROUTER_FALLBACK_MODEL
+        value: meta-llama/llama-3.3-70b-instruct:free
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: GUVI_CALLBACK_URL
+        value: https://hackathon.guvi.in/api/updateHoneyPotFinalResult
+    healthCheckPath: /health

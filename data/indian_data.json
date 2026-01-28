@@ -1,0 +1,117 @@
+{
+    "female_first_names": [
+        "Kamala", "Sunita", "Geeta", "Savitri", "Lakshmi", "Parvati", "Saraswati",
+        "Radha", "Sita", "Durga", "Meena", "Rekha", "Usha", "Shanti", "Pushpa",
+        "Kusum", "Saroj", "Anita", "Sumitra", "Shakuntala", "Kalyani", "Vimala",
+        "Sudha", "Padma", "Chandrakala", "Janaki", "Rukmini", "Devaki", "Gayatri"
+    ],
+    "male_first_names": [
+        "Ramesh", "Suresh", "Mahesh", "Rajesh", "Dinesh", "Ganesh", "Naresh",
+        "Mukesh", "Rakesh", "Lokesh", "Satish", "Ashok", "Vinod", "Manoj",
+        "Pramod", "Anil", "Sunil", "Sanjay", "Vijay", "Ravi", "Kumar"
+    ],
+    "surnames": [
+        "Sharma", "Verma", "Gupta", "Singh", "Kumar", "Yadav", "Pandey",
+        "Mishra", "Tiwari", "Dubey", "Srivastava", "Agarwal", "Joshi", "Saxena",
+        "Mehta", "Patel", "Reddy", "Naidu", "Rao", "Iyer", "Nair", "Pillai"
+    ],
+    "cities": [
+        {"name": "Varanasi", "state": "UP"},
+        {"name": "Lucknow", "state": "UP"},
+        {"name": "Kanpur", "state": "UP"},
+        {"name": "Allahabad", "state": "UP"},
+        {"name": "Jaipur", "state": "Rajasthan"},
+        {"name": "Jodhpur", "state": "Rajasthan"},
+        {"name": "Udaipur", "state": "Rajasthan"},
+        {"name": "Bhopal", "state": "MP"},
+        {"name": "Indore", "state": "MP"},
+        {"name": "Patna", "state": "Bihar"},
+        {"name": "Ranchi", "state": "Jharkhand"},
+        {"name": "Nagpur", "state": "Maharashtra"},
+        {"name": "Nashik", "state": "Maharashtra"},
+        {"name": "Coimbatore", "state": "Tamil Nadu"},
+        {"name": "Madurai", "state": "Tamil Nadu"},
+        {"name": "Vijayawada", "state": "Andhra Pradesh"},
+        {"name": "Visakhapatnam", "state": "Andhra Pradesh"}
+    ],
+    "professions": [
+        "Retired School Teacher",
+        "Retired Anganwadi Worker", 
+        "Housewife",
+        "Railway Pensioner",
+        "Retired Nurse",
+        "Retired Bank Clerk",
+        "Small Shop Owner",
+        "Retired Post Office Worker",
+        "Temple Priest Wife",
+        "Retired Government Servant"
+    ],
+    "banks": [
+        {
+            "name": "State Bank of India",
+            "short": "SBI",
+            "ifsc_prefix": "SBIN0",
+            "account_length": 11,
+            "account_prefixes": ["31", "32", "33", "56", "57", "66", "67"],
+            "upi_handle": "@oksbi"
+        },
+        {
+            "name": "HDFC Bank",
+            "short": "HDFC",
+            "ifsc_prefix": "HDFC0",
+            "account_length": 14,
+            "account_prefixes": ["591"],
+            "upi_handle": "@hdfcbank"
+        },
+        {
+            "name": "Punjab National Bank",
+            "short": "PNB",
+            "ifsc_prefix": "PUNB0",
+            "account_length": 16,
+            "account_prefixes": ["0123", "0124", "0125"],
+            "upi_handle": "@pnb"
+        },
+        {
+            "name": "ICICI Bank",
+            "short": "ICICI",
+            "ifsc_prefix": "ICIC0",
+            "account_length": 12,
+            "account_prefixes": [""],
+            "upi_handle": "@okicici"
+        },
+        {
+            "name": "Bank of Baroda",
+            "short": "BOB",
+            "ifsc_prefix": "BARB0",
+            "account_length": 14,
+            "account_prefixes": [""],
+            "upi_handle": "@barodampay"
+        }
+    ],
+    "card_types": [
+        {"type": "RuPay", "prefixes": ["6521", "6522", "6070", "8172"]},
+        {"type": "Visa", "prefixes": ["4"]},
+        {"type": "Mastercard", "prefixes": ["51", "52", "53", "54", "55"]}
+    ],
+    "speech_patterns": [
+        "Uses 'beta' and 'beti' often, says 'acha acha' frequently",
+        "Speaks slowly, repeats questions, says 'haan ji' a lot",
+        "Mixes Hindi words, says 'please' and 'sorry' often",
+        "Very polite, uses 'Sir ji' and 'Madam ji' respectfully",
+        "Gets confused easily, says 'kya?' and 'samajh nahi aaya'"
+    ],
+    "tech_levels": [
+        "Only uses phone for WhatsApp calls to family",
+        "Son taught basic UPI but still confused",
+        "Daughter set up phone, doesn't know how to use apps",
+        "Uses phone only for Jio TV and calls",
+        "Knows how to receive calls and send voice messages only"
+    ],
+    "family_patterns": [
+        {"son": "Rajesh works in Bangalore IT company", "daughter": "Sunita is married in Delhi"},
+        {"son": "Amit is in Mumbai doing business", "daughter": "Priya is abroad in Canada"},
+        {"son": "Vikram is government officer in Lucknow", "daughter": "Neha is doctor in Pune"},
+        {"son": "Sanjay is in Dubai", "daughter": "Kavita lives nearby"},
+        {"son": "Ravi is software engineer in Hyderabad", "daughter": "Meera is teacher in same city"}
+    ]
+}

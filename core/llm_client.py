@@ -29,12 +29,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 # Model priority for smart selection (higher = better)
 MODEL_PRIORITY = {
     "openai/gpt-oss-120b": 120,
-    "meta-llama/llama-3.1-405b-instruct:free": 100,  # Best quality
-    "google/gemini-2.5-flash-lite": 95,
-    "google/gemini-2.0-flash-exp:free": 90,           # Fast + good quality
-    "meta-llama/llama-3.3-70b-instruct:free": 80,     # Good fallback
-    "tngtech/deepseek-r1t2-chimera:free": 70,
-    "nvidia/nemotron-3-nano-30b-a3b:free": 60,
+    "google/gemini-2.5-flash-lite": 95
 }
 
 
@@ -291,7 +286,7 @@ def call_models_parallel(
         Tuple of (best_response, model_used) or (None, "none") if all failed
     """
     # Models to try in parallel
-    models = [OPENROUTER_MODEL, OPENROUTER_MODEL_2, OPENROUTER_FALLBACK]
+    models = [OPENROUTER_MODEL, OPENROUTER_FALLBACK]
     # Filter out duplicates while preserving order
     models = list(dict.fromkeys(m for m in models if m))
     

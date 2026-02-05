@@ -51,7 +51,7 @@ UPI_HANDLES = {
 }
 
 
-def normalize_upi_ids(items: List[str]) -> List[str]:
+def normalize_upi_ids(items: List[str], allow_unknown: bool = False) -> List[str]:
     normalized = []
     for item in items:
         if not item:
@@ -63,7 +63,7 @@ def normalize_upi_ids(items: List[str]) -> List[str]:
         if len(user) < 2:
             continue
         handle = handle.strip(".")
-        if handle not in UPI_HANDLES:
+        if handle not in UPI_HANDLES and not allow_unknown:
             continue
         normalized.append(f"{user}@{handle}")
     return list(set(normalized))
@@ -71,7 +71,8 @@ def normalize_upi_ids(items: List[str]) -> List[str]:
 
 def extract_upi_ids(text: str) -> List[str]:
     matches = re.findall(PATTERNS["upi"], text, re.IGNORECASE)
-    return normalize_upi_ids(matches)
+    allow_unknown = bool(re.search(r'\bupi\b', text.lower()))
+    return normalize_upi_ids(matches, allow_unknown=allow_unknown)
 
 
 def extract_bank_accounts(text: str) -> List[str]:
@@ -163,7 +164,7 @@ def merge_intelligence(existing: Dict[str, Any], new: Dict[str, Any]) -> Dict[st
         existing_list = existing.get(key, [])
         new_list = new.get(key, [])
         merged[key] = list(set(existing_list + new_list))
-    merged["upi_ids"] = normalize_upi_ids(merged.get("upi_ids", []))
+    merged["upi_ids"] = normalize_upi_ids(merged.get("upi_ids", []), allow_unknown=True)
     merged["phone_numbers"] = normalize_phone_numbers(merged.get("phone_numbers", []))
     return merged
 

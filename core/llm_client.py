@@ -443,6 +443,7 @@ def trim_response_text(text: str, max_chars: int = 320, max_sentences: int = 2) 
     if not text:
         return text
     cleaned = text.strip()
+    cleaned = re.sub(r'^(i understand|to verify|please|i can)\b', 'Arre haan ji', cleaned, flags=re.IGNORECASE)
     sentences = re.split(r'(?<=[.!?])\s+', cleaned)
     if len(sentences) > max_sentences:
         cleaned = " ".join(sentences[:max_sentences]).strip()
@@ -474,6 +475,65 @@ def is_repetitive_response(response: str, conversation_history: List[Dict[str, s
     if otp_loop and any(re.search(r'\botp\b', prev.lower()) for prev in recent_assistant):
         return True
     return False
+
+
+def sanitize_redundant_questions(
+    response: str,
+    memory_hint: Dict[str, Any],
+    conversation_history: List[Dict[str, str]],
+    session_id: str
+) -> str:
+    detail_map = {
+        "name": ("name", [r'\b(full name|poora naam|name)\b']),
+        "employee_id": ("employee_id", [r'\b(employee id|staff id|id number|id)\b']),
+        "phone": ("phone", [r'\b(phone|mobile|number|helpline)\b']),
+        "branch": ("branch", [r'\bbranch\b']),
+        "email": ("email", [r'\bemail\b']),
+        "ifsc": ("ifsc", [r'\bifsc\b']),
+        "upi_id": ("upi_id", [r'\bupi\b']),
+        "account_number": ("account_number", [r'\baccount\b'])
+    }
+    ask_verbs = r'(give|share|tell|send|provide|bata|bataye|batado|dijiye|dikha|likh|verify)'
+    sentences = re.split(r'(?<=[.!?])\s+', response.strip())
+    kept = []
+    removed = False
+    for sentence in sentences:
+        lowered = sentence.lower()
+        redundant = False
+        for key, (_, patterns) in detail_map.items():
+            known = memory_hint.get(key)
+            if not known:
+                continue
+            if re.search(ask_verbs, lowered) and any(re.search(p, lowered) for p in patterns):
+                redundant = True
+                break
+        if redundant:
+            removed = True
+        else:
+            kept.append(sentence)
+    cleaned = " ".join([s for s in kept if s]).strip()
+    if removed:
+        prompt_order = ["email", "branch", "ifsc", "upi_id", "account_number", "phone", "employee_id", "name"]
+        prompts = {
+            "email": "Aapka official bank email kya hai?",
+            "branch": "Aap kis branch se hain? Branch ka naam bata dijiye.",
+            "ifsc": "Aapka IFSC code kya hai?",
+            "upi_id": "Aapka official UPI ID bata dijiye.",
+            "account_number": "Aapka official account number kya hai?",
+            "phone": "Aapka official helpline number kya hai?",
+            "employee_id": "Aapka employee ID kya hai?",
+            "name": "Aapka poora naam kya hai?"
+        }
+        add_prompt = None
+        for key in prompt_order:
+            if not memory_hint.get(key):
+                add_prompt = prompts.get(key)
+                break
+        if not cleaned:
+            cleaned = get_contextual_fallback("", session_id, conversation_history)
+        if add_prompt and add_prompt.lower() not in cleaned.lower():
+            cleaned = f"{cleaned} {add_prompt}".strip()
+    return cleaned
 
 
 def repair_json_response(raw_response: str, schema_block: str) -> Optional[Dict[str, Any]]:
@@ -564,6 +624,8 @@ KNOWN SCAMMER DETAILS (do not re-ask these, acknowledge and pivot):
 - UPI: {memory_hint.get("upi_id")}
 - Account: {memory_hint.get("account_number")}
 - Designation: {memory_hint.get("designation")}
+- Branch: {memory_hint.get("branch")}
+- Email: {memory_hint.get("email")}
 
 CRITICAL STRATEGIC GUIDELINES:
 
@@ -599,6 +661,12 @@ Now analyze the scammer's message and respond contextually:"""
     parsed = parse_response_json(raw_response)
     if parsed:
         parsed["response"] = trim_response_text(parsed.get("response", ""))
+        parsed["response"] = sanitize_redundant_questions(
+            parsed["response"],
+            memory_hint,
+            conversation_history,
+            session_id
+        )
         if is_repetitive_response(parsed["response"], conversation_history, session_id):
             contextual_response = get_contextual_fallback(
                 current_message,

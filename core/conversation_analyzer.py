@@ -273,6 +273,8 @@ def get_session_data(session_id: str) -> Dict:
                 "claimed_phone": None,       # "Call me at 98765..."
                 "claimed_account": None,     # "My account is 1234..."
                 "claimed_designation": None, # "I am manager"
+                "claimed_branch": None,
+                "claimed_email": None,
                 "threat_type": None,         # "digital arrest", "account blocked"
                 "urgency_level": 0,          # How urgent they're being (0-3)
                 "times_asked_otp": 0,        # How many times they asked for OTP
@@ -337,6 +339,10 @@ def extract_scammer_intel(message: str, session: Dict) -> None:
     upi_match = re.search(r'(\w+@\w+)', message)
     if upi_match:
         memory["claimed_upi"] = upi_match.group(1)
+
+    email_match = re.search(r'([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+)', message)
+    if email_match and re.search(r'\bemail\b', message_lower):
+        memory["claimed_email"] = email_match.group(1)
     
     # Extract phone number
     phone_match = re.search(r'\+?91[\s-]?(\d{10})', message)
@@ -350,6 +356,10 @@ def extract_scammer_intel(message: str, session: Dict) -> None:
     account_match = re.search(r'(\d{12,16})', message)
     if account_match:
         memory["claimed_account"] = account_match.group(1)
+
+    branch_match = re.search(r'\b([a-zA-Z ]+)\s+branch\b', message, re.IGNORECASE)
+    if branch_match:
+        memory["claimed_branch"] = branch_match.group(1).strip().title()
     
     # Detect threat type
     if re.search(r'digital arrest|cyber crime|cbi|police|warrant', message_lower):
@@ -762,6 +772,8 @@ def analyze_conversation(
             "upi_id": memory["claimed_upi"],
             "account_number": memory["claimed_account"],
             "designation": memory["claimed_designation"],
+            "branch": memory["claimed_branch"],
+            "email": memory["claimed_email"],
             "times_asked_otp": memory["times_asked_otp"],
             "urgency_level": memory["urgency_level"],
         },

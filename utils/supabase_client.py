@@ -188,6 +188,25 @@ def save_intelligence(
         return False
 
 
+def get_callback_sent(session_id: str) -> bool:
+    if not REST_URL:
+        return False
+    
+    try:
+        url = f"{REST_URL}/intelligence?session_id=eq.{session_id}&select=callback_sent&order=created_at.desc&limit=1"
+        response = httpx.get(url, headers=get_headers(), timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data:
+                return bool(data[0].get("callback_sent"))
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error checking callback status: {e}")
+        return False
+
+
 def mark_callback_sent(session_id: str) -> bool:
     """
     Mark that GUVI callback has been sent for this session.

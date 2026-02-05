@@ -31,17 +31,27 @@ PATTERNS = {
 # Suspicious keywords indicating scam
 SCAM_KEYWORDS = [
     # Urgency
-    "urgent", "immediately", "now", "today only", "expires",
+    "urgent", "immediately", "now", "today only", "expires", "last chance", "limited time",
     # Fear
-    "blocked", "suspended", "arrested", "police", "cbi", "fraud", "illegal",
+    "blocked", "suspended", "arrested", "police", "cbi", "fraud", "illegal", "warrant", "cyber crime",
     # Action
-    "verify", "confirm", "update", "kyc", "otp", "pin", "password",
+    "verify", "confirm", "update", "kyc", "otp", "pin", "password", "verification code", "screen share",
     # Money
-    "transfer", "pay", "send money", "refund", "cashback", "prize", "lottery", "won",
+    "transfer", "pay", "send money", "refund", "chargeback", "cashback", "prize", "lottery", "won", "fine", "penalty",
     # Authority
-    "bank manager", "customer care", "support", "rbi", "government",
+    "bank manager", "customer care", "support", "helpline", "toll free", "rbi", "government", "income tax", "gst",
     # Technical
-    "link", "click", "download", "install", "app"
+    "link", "click", "download", "install", "app", "apk", "remote access", "anydesk", "teamviewer", "quick support",
+    # Channels
+    "whatsapp", "telegram", "sms", "email",
+    # Identity
+    "aadhaar", "pan", "kyc update", "video kyc",
+    # Payment tactics
+    "qr", "scan", "upi collect", "payment request", "request money",
+    # Delivery scams
+    "courier", "parcel", "customs", "delivery charge",
+    # Investment scams
+    "crypto", "bitcoin", "investment", "trading", "profit", "loan", "emi"
 ]
 
 
@@ -154,5 +164,6 @@ def has_actionable_intel(intelligence: Dict[str, Any]) -> bool:
     return bool(
         intelligence.get("upi_ids") or
         intelligence.get("bank_accounts") or
-        intelligence.get("phishing_links")
+        intelligence.get("phishing_links") or
+        intelligence.get("ifsc_codes")
     )

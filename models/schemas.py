@@ -66,7 +66,8 @@ class ExtractedIntelligence(BaseModel):
         return bool(
             self.bank_accounts or 
             self.upi_ids or 
-            self.phishing_links
+            self.phishing_links or
+            self.ifsc_codes
         )
     
     def to_guvi_format(self) -> dict:
@@ -76,6 +77,7 @@ class ExtractedIntelligence(BaseModel):
             "upiIds": self.upi_ids,
             "phishingLinks": self.phishing_links,
             "phoneNumbers": self.phone_numbers,
+            "ifscCodes": self.ifsc_codes,
             "suspiciousKeywords": self.suspicious_keywords
         }
 

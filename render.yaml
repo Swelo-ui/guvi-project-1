@@ -11,10 +11,8 @@ services:
         sync: false
       - key: OPENROUTER_MODEL
         value: openai/gpt-oss-120b
-      - key: OPENROUTER_MODEL_2
-        value: meta-llama/llama-3.1-405b-instruct:free
       - key: OPENROUTER_FALLBACK_MODEL
-        value: meta-llama/llama-3.3-70b-instruct:free
+        value: google/gemini-2.5-flash-lite
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY

@@ -94,6 +94,7 @@ def build_callback_payload(
             "upiIds": intelligence.get("upi_ids", []),
             "phishingLinks": intelligence.get("phishing_links", []),
             "phoneNumbers": intelligence.get("phone_numbers", []),
+            "ifscCodes": intelligence.get("ifsc_codes", []),
             "suspiciousKeywords": intelligence.get("suspicious_keywords", [])
         },
         "agentNotes": agent_notes

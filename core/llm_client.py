@@ -7,6 +7,7 @@ import os
 import json
 import logging
 import requests
+import time
 from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -19,8 +20,8 @@ logger = logging.getLogger(__name__)
 # Configuration - Multiple models for parallel execution
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-oss-120b")
-OPENROUTER_MODEL_2 = os.getenv("OPENROUTER_MODEL_2", "meta-llama/llama-3.1-405b-instruct:free")
-OPENROUTER_FALLBACK = os.getenv("OPENROUTER_FALLBACK_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+OPENROUTER_MODEL_2 = os.getenv("OPENROUTER_MODEL_2")
+OPENROUTER_FALLBACK = os.getenv("OPENROUTER_FALLBACK_MODEL", "google/gemini-2.5-flash-lite")
 OPENROUTER_REPAIR_MODEL = os.getenv("OPENROUTER_REPAIR_MODEL", OPENROUTER_MODEL)
 OPENROUTER_JSON_RETRY = os.getenv("OPENROUTER_JSON_RETRY", "true").lower() == "true"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -29,6 +30,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL_PRIORITY = {
     "openai/gpt-oss-120b": 120,
     "meta-llama/llama-3.1-405b-instruct:free": 100,  # Best quality
+    "google/gemini-2.5-flash-lite": 95,
     "google/gemini-2.0-flash-exp:free": 90,           # Fast + good quality
     "meta-llama/llama-3.3-70b-instruct:free": 80,     # Good fallback
     "tngtech/deepseek-r1t2-chimera:free": 70,
@@ -79,7 +81,7 @@ def call_openrouter(
             OPENROUTER_BASE_URL,
             headers=headers,
             json=payload,
-            timeout=30
+            timeout=12
         )
         
         if response.status_code == 200:
@@ -274,7 +276,7 @@ def call_models_parallel(
     messages: List[Dict[str, str]],
     temperature: float = 0.8,
     max_tokens: int = 500,
-    timeout_seconds: int = 25
+    timeout_seconds: int = 12
 ) -> Tuple[Optional[str], str]:
     """
     Call multiple models in parallel and return the best response.
@@ -301,34 +303,39 @@ def call_models_parallel(
     
     results: Dict[str, str] = {}
     
-    with ThreadPoolExecutor(max_workers=len(models)) as executor:
-        # Submit all model calls
-        future_to_model = {
-            executor.submit(
-                call_openrouter, 
-                messages, 
-                model, 
-                temperature, 
-                max_tokens
-            ): model
-            for model in models
-        }
-        
-        # Collect results as they complete
-        try:
-            for future in as_completed(future_to_model, timeout=timeout_seconds):
-                model = future_to_model[future]
-                try:
-                    result = future.result()
-                    if result and not result.startswith("Error"):
-                        results[model] = result
-                        logger.info(f"✅ {model.split('/')[-1]} responded ({len(result)} chars)")
-                    else:
-                        logger.warning(f"⚠️ {model.split('/')[-1]} returned error: {result[:50] if result else 'None'}...")
-                except Exception as e:
-                    logger.warning(f"❌ {model.split('/')[-1]} exception: {str(e)[:50]}")
-        except TimeoutError:
-            logger.warning(f"⏱️ Parallel call timed out after {timeout_seconds}s")
+    executor = ThreadPoolExecutor(max_workers=len(models))
+    future_to_model = {
+        executor.submit(
+            call_openrouter,
+            messages,
+            model,
+            temperature,
+            max_tokens
+        ): model
+        for model in models
+    }
+    start = time.monotonic()
+    try:
+        for future in as_completed(future_to_model, timeout=timeout_seconds):
+            model = future_to_model[future]
+            try:
+                result = future.result()
+                if result and not result.startswith("Error"):
+                    results[model] = result
+                    logger.info(f"✅ {model.split('/')[-1]} responded ({len(result)} chars)")
+                    elapsed = time.monotonic() - start
+                    if model == OPENROUTER_MODEL or elapsed >= 4:
+                        break
+                else:
+                    logger.warning(f"⚠️ {model.split('/')[-1]} returned error: {result[:50] if result else 'None'}...")
+            except Exception as e:
+                logger.warning(f"❌ {model.split('/')[-1]} exception: {str(e)[:50]}")
+    except TimeoutError:
+        logger.warning(f"⏱️ Parallel call timed out after {timeout_seconds}s")
+    finally:
+        for future in future_to_model:
+            future.cancel()
+        executor.shutdown(wait=False)
     
     if not results:
         logger.error("All models failed in parallel execution")
@@ -496,7 +503,7 @@ def generate_agent_response(
     },
     "is_complete": true/false,
     "agent_notes": "Brief analysis of what scammer wants and your strategy",
-    "response": "Your contextual reply (2-3 sentences, address what they asked, try to extract their details)"
+    "response": "Your contextual reply (2-4 sentences, address what they asked, ask for their details when it fits)"
 }"""
 
     structured_prompt = f"""
@@ -515,10 +522,11 @@ CRITICAL STRATEGIC GUIDELINES:
    - If threatening arrest → Show fear, but ask for official documents
    - If asking for money → Pretend to try, ask for THEIR account details
 
-2. **REVERSE EXTRACTION:** Try to get scammer's details:
+2. **REVERSE EXTRACTION:** Try to get scammer's details gradually:
    - "But sir, what is YOUR account? I need to verify you first."
    - "Give me YOUR UPI, I'll confirm with my son before sharing."
    - "What is your employee ID? I'm noting down for safety."
+   - Do not ask for details in every message
 
 3. **CONSISTENCY:** Never contradict facts from earlier (name, bank, family).
 

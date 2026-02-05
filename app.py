@@ -23,7 +23,7 @@ from models.intelligence import extract_all_intelligence, merge_intelligence, ha
 from utils.supabase_client import (
     get_persona, save_persona, update_session_activity,
     save_intelligence, save_message, mark_callback_sent,
-    get_cached_persona, cache_persona
+    get_cached_persona, cache_persona, get_callback_sent
 )
 from utils.guvi_callback import send_callback_async, build_callback_payload
 
@@ -105,8 +105,21 @@ def honey_pot_chat():
         
         session_id = data.get("sessionId", f"unknown_{datetime.now().timestamp()}")
         message_obj = data.get("message", {})
+        if not isinstance(message_obj, dict) or not message_obj.get("text"):
+            return jsonify({"status": "error", "message": "Invalid message: text is required"}), 400
+        
         incoming_msg = message_obj.get("text", "")
+        if not isinstance(incoming_msg, str) or not incoming_msg.strip():
+            return jsonify({"status": "error", "message": "Invalid message: text must be a non-empty string"}), 400
+        
         conversation_history = data.get("conversationHistory", [])
+        if not isinstance(conversation_history, list):
+            conversation_history = []
+        else:
+            conversation_history = [
+                msg for msg in conversation_history
+                if isinstance(msg, dict) and msg.get("text") is not None
+            ]
         
         logger.info(f"📨 Session {session_id}: Received message - {incoming_msg[:50]}...")
         
@@ -140,6 +153,9 @@ def honey_pot_chat():
         
         # 7. Determine if conversation is complete
         scam_detected = llm_response.get("scam_detected", True)
+        if not scam_detected:
+            if has_actionable_intel(combined_intel) or combined_intel.get("suspicious_keywords"):
+                scam_detected = True
         is_complete = llm_response.get("is_complete", False) or has_actionable_intel(combined_intel)
         
         total_messages = len(conversation_history) + 1
@@ -152,7 +168,8 @@ def honey_pot_chat():
         update_session_activity(session_id, total_messages)
         
         should_send_callback = is_complete or has_actionable_intel(combined_intel)
-        if should_send_callback and session_id not in SENT_CALLBACKS:
+        callback_already_sent = session_id in SENT_CALLBACKS or get_callback_sent(session_id)
+        if should_send_callback and not callback_already_sent:
             callback_payload = build_callback_payload(
                 session_id=session_id,
                 scam_detected=scam_detected,
@@ -179,6 +196,7 @@ def honey_pot_chat():
                 "upiIds": combined_intel.get("upi_ids", []),
                 "phishingLinks": combined_intel.get("phishing_links", []),
                 "phoneNumbers": combined_intel.get("phone_numbers", []),
+                "ifscCodes": combined_intel.get("ifsc_codes", []),
                 "suspiciousKeywords": combined_intel.get("suspicious_keywords", [])
             },
             "agentNotes": agent_notes,

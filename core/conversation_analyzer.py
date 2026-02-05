@@ -577,7 +577,9 @@ def get_available_extraction_category(session: Dict, phase: ConversationPhase) -
     available = [c for c in categories if c not in recent]
     if not available:
         available = categories
-    return random.choice(available)
+    chosen = random.choice(available)
+    session["used_extractions"].append(chosen)
+    return chosen
 
 
 def build_response(
@@ -627,8 +629,12 @@ def build_response(
         session["asked_categories"].append(category)
         
         prompts = REVERSE_EXTRACT_BY_CATEGORY[category]
-        available = [p for p in prompts if not is_similar_used(session, p)]
+        available = [
+            p for p in prompts
+            if p not in session["used_extractions"] and not is_similar_used(session, p)
+        ]
         extraction = random.choice(available) if available else random.choice(prompts)
+        session["used_extractions"].append(extraction)
         
         # Combine stall + extraction
         return f"{base_stall} {extraction}"
@@ -693,7 +699,10 @@ def get_reverse_extraction_prompt(
     session["asked_categories"].append(category)
     
     prompts = REVERSE_EXTRACT_BY_CATEGORY[category]
-    available = [p for p in prompts if p not in used_prompts and not is_similar_used(session, p)]
+    available = [
+        p for p in prompts
+        if p not in used_prompts and p not in session["used_extractions"] and not is_similar_used(session, p)
+    ]
     
     if not available:
         available = prompts

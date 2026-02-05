@@ -9,22 +9,11 @@ from typing import Dict, List, Any
 
 # Regex patterns for intelligence extraction
 PATTERNS = {
-    # UPI ID: username@bank (e.g., rahul123@ybl, 9876543210@paytm)
-    "upi": r'[a-zA-Z0-9._-]+@[a-zA-Z]{2,}',
-    
-    # Bank account: 10-18 digit numbers
+    "upi": r'[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+',
     "bank_account": r'\b\d{10,18}\b',
-    
-    # IFSC code: 4 letters + 0 + 6 alphanumeric
     "ifsc": r'\b[A-Z]{4}0[A-Z0-9]{6}\b',
-    
-    # Indian phone: +91 or 10 digits starting with 6-9
-    "phone": r'(?:\+91[\s-]?)?[6-9]\d{9}\b',
-    
-    # URLs (potential phishing links)
+    "phone": r'(?<!\d)(?:\+91[\s-]?)?[6-9]\d{9}(?!\d)',
     "url": r'https?://[^\s<>"{}|\\^`\[\]]+|bit\.ly/[^\s]+|tinyurl\.com/[^\s]+',
-    
-    # WhatsApp links
     "whatsapp": r'wa\.me/\d+',
 }
 
@@ -55,12 +44,34 @@ SCAM_KEYWORDS = [
 ]
 
 
+UPI_HANDLES = {
+    "ybl", "oksbi", "okicici", "okhdfcbank", "okaxis", "paytm", "axl", "ibl",
+    "upi", "sbi", "icici", "hdfcbank", "axis", "pnb", "kotak", "yesbank",
+    "barodampay", "idfcbank"
+}
+
+
+def normalize_upi_ids(items: List[str]) -> List[str]:
+    normalized = []
+    for item in items:
+        if not item:
+            continue
+        candidate = re.sub(r'[^\w@.-]', '', item.strip().lower())
+        if candidate.count("@") != 1:
+            continue
+        user, handle = candidate.split("@", 1)
+        if len(user) < 2:
+            continue
+        handle = handle.strip(".")
+        if handle not in UPI_HANDLES:
+            continue
+        normalized.append(f"{user}@{handle}")
+    return list(set(normalized))
+
+
 def extract_upi_ids(text: str) -> List[str]:
-    """Extract UPI IDs from text."""
     matches = re.findall(PATTERNS["upi"], text, re.IGNORECASE)
-    # Filter out common false positives
-    valid = [m for m in matches if not m.endswith('@gmail') and not m.endswith('@yahoo')]
-    return list(set(valid))
+    return normalize_upi_ids(matches)
 
 
 def extract_bank_accounts(text: str) -> List[str]:
@@ -81,18 +92,22 @@ def extract_ifsc_codes(text: str) -> List[str]:
     return list(set(re.findall(PATTERNS["ifsc"], text.upper())))
 
 
-def extract_phone_numbers(text: str) -> List[str]:
-    """Extract Indian phone numbers."""
-    matches = re.findall(PATTERNS["phone"], text)
-    # Normalize format
+def normalize_phone_numbers(items: List[str]) -> List[str]:
     normalized = []
-    for m in matches:
-        clean = re.sub(r'[\s-]', '', m)
+    for item in items:
+        if not item:
+            continue
+        clean = re.sub(r'[^\d+]', '', str(item))
         if clean.startswith('+91'):
             clean = clean[3:]
-        if len(clean) == 10:
+        if len(clean) == 10 and clean[0] in '6789':
             normalized.append(f"+91{clean}")
     return list(set(normalized))
+
+
+def extract_phone_numbers(text: str) -> List[str]:
+    matches = re.findall(PATTERNS["phone"], text)
+    return normalize_phone_numbers(matches)
 
 
 def extract_urls(text: str) -> List[str]:
@@ -148,6 +163,8 @@ def merge_intelligence(existing: Dict[str, Any], new: Dict[str, Any]) -> Dict[st
         existing_list = existing.get(key, [])
         new_list = new.get(key, [])
         merged[key] = list(set(existing_list + new_list))
+    merged["upi_ids"] = normalize_upi_ids(merged.get("upi_ids", []))
+    merged["phone_numbers"] = normalize_phone_numbers(merged.get("phone_numbers", []))
     return merged
 
 

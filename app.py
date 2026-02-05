@@ -187,6 +187,21 @@ def honey_pot_chat():
         total_messages = len(conversation_history) + 1
         agent_notes = llm_response.get("agent_notes", "")
         strategy = llm_response.get("strategy", "feigning_ignorance")
+        intel_summary = []
+        if combined_intel.get("phone_numbers"):
+            intel_summary.append(f"phones={len(combined_intel['phone_numbers'])}")
+        if combined_intel.get("upi_ids"):
+            intel_summary.append(f"upi={len(combined_intel['upi_ids'])}")
+        if combined_intel.get("bank_accounts"):
+            intel_summary.append(f"accounts={len(combined_intel['bank_accounts'])}")
+        if combined_intel.get("ifsc_codes"):
+            intel_summary.append(f"ifsc={len(combined_intel['ifsc_codes'])}")
+        if combined_intel.get("phishing_links"):
+            intel_summary.append(f"links={len(combined_intel['phishing_links'])}")
+        if combined_intel.get("suspicious_keywords"):
+            intel_summary.append(f"keywords={len(combined_intel['suspicious_keywords'])}")
+        if intel_summary:
+            agent_notes = f"{agent_notes} | Extracted: {', '.join(intel_summary)}".strip()
         
         run_async(save_message, session_id, "scammer", incoming_msg)
         run_async(save_message, session_id, "agent", llm_response.get("response", ""), strategy)

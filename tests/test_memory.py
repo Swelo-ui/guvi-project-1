@@ -47,7 +47,7 @@ def test_memory():
     )
     
     print(f"\n=== RESULT: {'✅ PASS' if success else '❌ FAIL'} ===")
-    return success
+    assert success
 
 if __name__ == "__main__":
     test_memory()

@@ -30,7 +30,7 @@ def test_no_duplicates():
     unique = len(set(responses))
     print(f"\n  Unique: {unique}/15")
     print(f"  Status: {'✅ PASS' if unique == 15 else '❌ FAIL - duplicates!'}")
-    return unique == 15
+    assert unique == 15
 
 def test_response_variety():
     """Test that response TYPES are varied (not always same pattern)."""
@@ -52,7 +52,7 @@ def test_response_variety():
         print(f"  {i+1}. {response[:55]}...")
     
     print(f"\n  ✅ PASS - Varied responses generated")
-    return True
+    assert True
 
 def test_no_repeated_extraction_categories():
     """Test that we don't ask for same info repeatedly."""
@@ -64,19 +64,24 @@ def test_no_repeated_extraction_categories():
     session = get_session_data(session_id)
     
     # Force extraction responses
-    from core.conversation_analyzer import choose_response_type, build_response
+    from core.conversation_analyzer import build_response
     
     extractions = []
     for i in range(6):
         # Build extraction response
-        response = build_response(session, ScammerIntent.OTP, ResponseType.REVERSE_EXTRACT)
+        response = build_response(
+            session,
+            ScammerIntent.OTP,
+            ResponseType.REVERSE_EXTRACT,
+            ConversationPhase.EXTRACTION_ATTEMPT
+        )
         extractions.append(response)
         print(f"  {i+1}. {response[:60]}...")
     
     asked = session["asked_categories"]
     print(f"\n  Categories asked: {asked}")
     print(f"  ✅ PASS - Categories tracked and varied" if len(set(asked)) > 1 else "❌ FAIL")
-    return len(set(asked)) > 1
+    assert len(set(asked)) > 1
 
 def test_conversation_simulation():
     """Simulate a realistic conversation."""
@@ -112,16 +117,14 @@ def test_conversation_simulation():
     print(f"\n  Total responses: {session['response_count']}")
     print(f"  Categories asked: {session['asked_categories']}")
     print(f"  ✅ Simulation complete - check variety above!")
-    return True
+    assert True
 
 if __name__ == "__main__":
-    results = []
-    results.append(test_no_duplicates())
-    results.append(test_response_variety())
-    results.append(test_no_repeated_extraction_categories())
-    results.append(test_conversation_simulation())
+    test_no_duplicates()
+    test_response_variety()
+    test_no_repeated_extraction_categories()
+    test_conversation_simulation()
     
     print("\n" + "=" * 60)
-    passed = sum(results)
-    print(f"OVERALL: {passed}/{len(results)} tests passed")
+    print("OVERALL: 4/4 tests passed")
     print("=" * 60)

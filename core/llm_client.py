@@ -68,6 +68,7 @@ def call_openrouter(
         "X-Title": "GUVI Honeypot Agent"
     }
     
+    max_tokens = max(max_tokens, 500)
     payload = {
         "model": model,
         "messages": messages,
@@ -362,14 +363,15 @@ def call_models_parallel(
 
 def call_with_fallback(
     messages: List[Dict[str, str]],
-    temperature: float = 0.8
+    temperature: float = 0.8,
+    max_tokens: int = 500
 ) -> str:
     """
     Call models in parallel and return the best response.
     Falls back to emergency response if all models fail.
     """
     # Try parallel execution
-    response, model_used = call_models_parallel(messages, temperature=temperature)
+    response, model_used = call_models_parallel(messages, temperature=temperature, max_tokens=max_tokens)
     
     if response:
         return response
@@ -435,6 +437,20 @@ def parse_response_json(raw_response: str) -> Optional[Dict[str, Any]]:
         return json.loads(cleaned_json)
     except Exception:
         return None
+
+
+def trim_response_text(text: str, max_chars: int = 320, max_sentences: int = 2) -> str:
+    if not text:
+        return text
+    cleaned = text.strip()
+    sentences = re.split(r'(?<=[.!?])\s+', cleaned)
+    if len(sentences) > max_sentences:
+        cleaned = " ".join(sentences[:max_sentences]).strip()
+    if len(cleaned) > max_chars:
+        cleaned = cleaned[:max_chars].rstrip()
+        if cleaned and cleaned[-1] not in ".!?":
+            cleaned += "..."
+    return cleaned
 
 
 def repair_json_response(raw_response: str, schema_block: str) -> Optional[Dict[str, Any]]:
@@ -506,7 +522,7 @@ def generate_agent_response(
     },
     "is_complete": true/false,
     "agent_notes": "Brief analysis of what scammer wants and your strategy",
-    "response": "Your contextual reply (2-4 sentences, address what they asked, ask for their details when it fits)"
+    "response": "Your contextual reply (1-2 sentences, address what they asked, ask for their details when it fits)"
 }"""
 
     structured_prompt = f"""
@@ -545,15 +561,17 @@ Now analyze the scammer's message and respond contextually:"""
     messages.append({"role": "user", "content": structured_prompt})
     
     # Get response
-    raw_response = call_with_fallback(messages, temperature=0.85) # Increased temp for variety
+    raw_response = call_with_fallback(messages, temperature=0.85, max_tokens=500)
     
     parsed = parse_response_json(raw_response)
     if parsed:
+        parsed["response"] = trim_response_text(parsed.get("response", ""))
         return parsed
 
     if OPENROUTER_JSON_RETRY:
         repaired = repair_json_response(raw_response, schema_block)
         if repaired:
+            repaired["response"] = trim_response_text(repaired.get("response", ""))
             return repaired
     
     # Fallback: use contextual response when LLM doesn't return proper JSON
@@ -568,6 +586,7 @@ Now analyze the scammer's message and respond contextually:"""
         session_id, 
         conversation_history
     )
+    contextual_response = trim_response_text(contextual_response)
     
     if llm_gave_text:
         # LLM spoke naturally but in wrong format - log for debugging

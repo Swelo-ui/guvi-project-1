@@ -3,9 +3,11 @@ Comprehensive Test Suite for Operation Iron-Mask
 Tests all 12 scam archetypes, intelligence extraction, and persona consistency
 """
 
+import os
 import requests
 import json
 import time
+import pytest
 from datetime import datetime
 
 API_URL = "http://127.0.0.1:5000/api/honey-pot"
@@ -14,6 +16,7 @@ HEADERS = {
     "x-api-key": API_KEY,
     "Content-Type": "application/json"
 }
+RUN_INTEGRATION = os.getenv("RUN_INTEGRATION_TESTS") == "true"
 
 # Test cases for all 12 scam archetypes
 TEST_CASES = [
@@ -147,6 +150,7 @@ def run_test(test_case):
         return {"name": test_case["name"], "status": "ERROR", "error": str(e)}
 
 
+@pytest.mark.skipif(not RUN_INTEGRATION, reason="Set RUN_INTEGRATION_TESTS=true to run")
 def test_persona_consistency():
     """Test that personas are consistent across multiple messages."""
     session_id = "test-persona-consistency-final"
@@ -182,6 +186,7 @@ def test_persona_consistency():
     }
 
 
+@pytest.mark.skipif(not RUN_INTEGRATION, reason="Set RUN_INTEGRATION_TESTS=true to run")
 def test_latency():
     """Test API responds within 1 second."""
     payload = {

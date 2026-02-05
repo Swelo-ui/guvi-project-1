@@ -237,6 +237,15 @@ Content-Type: application/json
 }
 ```
 
+### Keep-Warm Note (Render Free Tier)
+
+Render Free web services spin down after ~15 minutes of inactivity, which can cause a cold-start delay. This repo includes a GitHub Actions keep-warm workflow that pings `/health` every 5 minutes so GUVI evaluators see a responsive service without downtime.
+
+To enable it:
+- Push this repository to GitHub
+- Ensure GitHub Actions are enabled for the repo
+- The workflow runs on a schedule and needs no API keys
+
 ### Root Endpoint
 
 #### `GET /`

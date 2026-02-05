@@ -18,13 +18,16 @@ logger = logging.getLogger(__name__)
 
 # Configuration - Multiple models for parallel execution
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-oss-120b")
 OPENROUTER_MODEL_2 = os.getenv("OPENROUTER_MODEL_2", "meta-llama/llama-3.1-405b-instruct:free")
 OPENROUTER_FALLBACK = os.getenv("OPENROUTER_FALLBACK_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+OPENROUTER_REPAIR_MODEL = os.getenv("OPENROUTER_REPAIR_MODEL", OPENROUTER_MODEL)
+OPENROUTER_JSON_RETRY = os.getenv("OPENROUTER_JSON_RETRY", "true").lower() == "true"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # Model priority for smart selection (higher = better)
 MODEL_PRIORITY = {
+    "openai/gpt-oss-120b": 120,
     "meta-llama/llama-3.1-405b-instruct:free": 100,  # Best quality
     "google/gemini-2.0-flash-exp:free": 90,           # Fast + good quality
     "meta-llama/llama-3.3-70b-instruct:free": 80,     # Good fallback
@@ -414,6 +417,25 @@ def clean_json_string(json_str: str) -> str:
     return json_str
 
 
+def parse_response_json(raw_response: str) -> Optional[Dict[str, Any]]:
+    if not raw_response:
+        return None
+    try:
+        cleaned_json = clean_json_string(raw_response)
+        return json.loads(cleaned_json)
+    except Exception:
+        return None
+
+
+def repair_json_response(raw_response: str, schema_block: str) -> Optional[Dict[str, Any]]:
+    repair_messages = [
+        {"role": "system", "content": "You return only valid JSON and nothing else."},
+        {"role": "user", "content": f"Return valid JSON matching this schema:\n{schema_block}\n\nRaw output:\n{raw_response}"}
+    ]
+    repaired = call_openrouter(repair_messages, model=OPENROUTER_REPAIR_MODEL, temperature=0.0, max_tokens=700)
+    return parse_response_json(repaired)
+
+
 def generate_agent_response(
     system_prompt: str,
     conversation_history: List[Dict[str, str]],
@@ -460,6 +482,23 @@ def generate_agent_response(
     intent_hint = context_analysis.get("primary_intent", "unknown")
     phase_hint = context_analysis.get("conversation_phase", "unknown")
     
+    schema_block = """{
+    "scam_detected": true/false,
+    "scam_type": "bank_fraud/upi_fraud/digital_arrest/lottery_scam/kyc_fraud/investment_scam/unknown",
+    "scammer_tactic": "urgency/fear/greed/impersonation/authority",
+    "strategy": "contextual_engagement/reverse_extraction/stalling/panic_mode/baiting/probing",
+    "intelligence": {
+        "bank_accounts": [],
+        "upi_ids": [],
+        "phishing_links": [],
+        "phone_numbers": [],
+        "suspicious_keywords": []
+    },
+    "is_complete": true/false,
+    "agent_notes": "Brief analysis of what scammer wants and your strategy",
+    "response": "Your contextual reply (2-3 sentences, address what they asked, try to extract their details)"
+}"""
+
     structured_prompt = f"""
 {extraction_prompt}
 
@@ -488,22 +527,7 @@ CRITICAL STRATEGIC GUIDELINES:
 5. **NATURAL STALLING:** Use believable delays relevant to the context.
 
 RESPONSE FORMAT (respond in this exact JSON format):
-{{
-    "scam_detected": true/false,
-    "scam_type": "bank_fraud/upi_fraud/digital_arrest/lottery_scam/kyc_fraud/investment_scam/unknown",
-    "scammer_tactic": "urgency/fear/greed/impersonation/authority",
-    "strategy": "contextual_engagement/reverse_extraction/stalling/panic_mode/baiting/probing",
-    "intelligence": {{
-        "bank_accounts": [],
-        "upi_ids": [],
-        "phishing_links": [],
-        "phone_numbers": [],
-        "suspicious_keywords": []
-    }},
-    "is_complete": true/false,
-    "agent_notes": "Brief analysis of what scammer wants and your strategy",
-    "response": "Your contextual reply (2-3 sentences, address what they asked, try to extract their details)"
-}}
+{schema_block}
 
 Now analyze the scammer's message and respond contextually:"""
     
@@ -512,16 +536,14 @@ Now analyze the scammer's message and respond contextually:"""
     # Get response
     raw_response = call_with_fallback(messages, temperature=0.85) # Increased temp for variety
     
-    # Parse JSON from response
-    try:
-        # Clean the response first
-        cleaned_json = clean_json_string(raw_response)
-        return json.loads(cleaned_json)
-            
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse JSON: {e}. Raw: {raw_response[:100]}...")
-    except Exception as e:
-        logger.error(f"Error during JSON processing: {e}")
+    parsed = parse_response_json(raw_response)
+    if parsed:
+        return parsed
+
+    if OPENROUTER_JSON_RETRY:
+        repaired = repair_json_response(raw_response, schema_block)
+        if repaired:
+            return repaired
     
     # Fallback: use contextual response when LLM doesn't return proper JSON
     # Even if LLM returns plain text, use our controlled contextual responses for consistency

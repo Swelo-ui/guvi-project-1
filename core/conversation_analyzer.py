@@ -543,25 +543,48 @@ def choose_response_type(session: Dict, phase: ConversationPhase) -> ResponseTyp
     return random.choices(choices, probs)[0]
 
 
-def get_available_extraction_category(session: Dict) -> Optional[str]:
-    """Get an extraction category we haven't asked about recently."""
+def get_available_extraction_category(session: Dict, phase: ConversationPhase) -> Optional[str]:
     asked = session["asked_categories"]
-    categories = list(REVERSE_EXTRACT_BY_CATEGORY.keys())
-    
-    # Filter out recently asked (last 3)
     recent = asked[-3:] if len(asked) >= 3 else asked
+    memory = session["scammer_memory"]
+
+    category_to_memory = {
+        "name": "claimed_name",
+        "employee_id": "claimed_employee_id",
+        "phone_number": "claimed_phone",
+        "upi_id": "claimed_upi",
+        "account_number": "claimed_account",
+        "document": "claimed_employee_id"
+    }
+
+    if phase in (ConversationPhase.INITIAL_CONTACT, ConversationPhase.BUILDING_TRUST):
+        priority = ["name", "employee_id", "document"]
+    elif phase in (ConversationPhase.CREATING_URGENCY, ConversationPhase.EXTRACTION_ATTEMPT):
+        priority = ["phone_number", "name", "employee_id"]
+    else:
+        priority = ["upi_id", "account_number", "phone_number", "employee_id"]
+
+    for category in priority:
+        memory_key = category_to_memory.get(category)
+        if memory_key and not memory.get(memory_key) and category not in recent:
+            return category
+
+    for category, memory_key in category_to_memory.items():
+        if not memory.get(memory_key) and category not in recent:
+            return category
+
+    categories = list(REVERSE_EXTRACT_BY_CATEGORY.keys())
     available = [c for c in categories if c not in recent]
-    
     if not available:
-        available = categories  # Reset if all used
-    
+        available = categories
     return random.choice(available)
 
 
 def build_response(
     session: Dict,
     primary_intent: ScammerIntent,
-    response_type: ResponseType
+    response_type: ResponseType,
+    phase: ConversationPhase
 ) -> str:
     """Build a response based on type and intent."""
     
@@ -600,7 +623,7 @@ def build_response(
     
     elif response_type == ResponseType.REVERSE_EXTRACT:
         # Get a category we haven't asked about recently
-        category = get_available_extraction_category(session)
+        category = get_available_extraction_category(session, phase)
         session["asked_categories"].append(category)
         
         prompts = REVERSE_EXTRACT_BY_CATEGORY[category]
@@ -632,27 +655,41 @@ def get_contextual_response(
     response_type = choose_response_type(session, phase)
     
     # Build the response
-    response = build_response(session, primary_intent, response_type)
+    response = build_response(session, primary_intent, response_type, phase)
     
     # Safety check: deduplicate
     attempts = 0
     while is_similar_used(session, response) and attempts < 5:
         response_type = choose_response_type(session, phase)
-        response = build_response(session, primary_intent, response_type)
+        response = build_response(session, primary_intent, response_type, phase)
         attempts += 1
     
-    # Mark as used
-    mark_response_used(session, response, response_type)
+    appended_extraction = False
+    if response_type != ResponseType.REVERSE_EXTRACT and phase in (
+        ConversationPhase.EXTRACTION_ATTEMPT,
+        ConversationPhase.PERSISTENCE,
+        ConversationPhase.FINAL_PUSH
+    ):
+        if random.random() > 0.6:
+            prompt = get_reverse_extraction_prompt([], session_id=session_id, phase=phase)
+            if prompt and not is_similar_used(session, prompt):
+                response = f"{response} {prompt}"
+                appended_extraction = True
     
-    # Return with extraction flag
-    should_extract = (response_type == ResponseType.REVERSE_EXTRACT)
+    track_type = ResponseType.REVERSE_EXTRACT if appended_extraction else response_type
+    mark_response_used(session, response, track_type)
+    
+    should_extract = (response_type == ResponseType.REVERSE_EXTRACT) or appended_extraction
     return response, should_extract
 
 
-def get_reverse_extraction_prompt(used_prompts: List[str], session_id: str = "default") -> Optional[str]:
-    """Get a reverse extraction prompt (standalone, for combining)."""
+def get_reverse_extraction_prompt(
+    used_prompts: List[str],
+    session_id: str = "default",
+    phase: ConversationPhase = ConversationPhase.EXTRACTION_ATTEMPT
+) -> Optional[str]:
     session = get_session_data(session_id)
-    category = get_available_extraction_category(session)
+    category = get_available_extraction_category(session, phase)
     session["asked_categories"].append(category)
     
     prompts = REVERSE_EXTRACT_BY_CATEGORY[category]

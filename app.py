@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 # API Key for authentication
 API_KEY_SECRET = os.getenv("HONEYPOT_API_KEY", "sk_ironmask_hackathon_2026")
+SENT_CALLBACKS = set()
 
 
 # --- HELPER FUNCTIONS ---
@@ -150,18 +151,19 @@ def honey_pot_chat():
         save_message(session_id, "agent", llm_response.get("response", ""), strategy)
         update_session_activity(session_id, total_messages)
         
-        # 9. Send GUVI callback if we have actionable intel
-        if scam_detected and has_actionable_intel(combined_intel):
+        should_send_callback = is_complete or has_actionable_intel(combined_intel)
+        if should_send_callback and session_id not in SENT_CALLBACKS:
             callback_payload = build_callback_payload(
                 session_id=session_id,
-                scam_detected=True,
+                scam_detected=scam_detected,
                 total_messages=total_messages,
                 intelligence=combined_intel,
                 agent_notes=f"{strategy} | {agent_notes}"
             )
             send_callback_async(callback_payload)
-            save_intelligence(session_id, combined_intel, True, agent_notes)
+            save_intelligence(session_id, combined_intel, scam_detected, agent_notes)
             mark_callback_sent(session_id)
+            SENT_CALLBACKS.add(session_id)
             logger.info(f"🎯 Intelligence extracted! UPIs: {combined_intel.get('upi_ids')}, Banks: {combined_intel.get('bank_accounts')}")
         
         # 10. Build response

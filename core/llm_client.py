@@ -453,6 +453,29 @@ def trim_response_text(text: str, max_chars: int = 320, max_sentences: int = 2) 
     return cleaned
 
 
+def get_prefix_key(text: str, word_count: int = 8) -> str:
+    cleaned = re.sub(r'[^a-zA-Z0-9\s]+', ' ', text.lower())
+    words = cleaned.split()
+    return " ".join(words[:word_count])
+
+
+def is_repetitive_response(response: str, conversation_history: List[Dict[str, str]], session_id: str) -> bool:
+    recent_assistant = [
+        msg.get("text", "")
+        for msg in conversation_history
+        if msg.get("sender") == "agent"
+    ][-2:]
+    response_prefix = get_prefix_key(response)
+    if any(response_prefix and response_prefix == get_prefix_key(prev) for prev in recent_assistant):
+        return True
+    if response in get_used_responses(session_id):
+        return True
+    otp_loop = re.search(r'\botp\b', response.lower()) and re.search(r'\b(nahi|not|didn\'t|did not)\b', response.lower())
+    if otp_loop and any(re.search(r'\botp\b', prev.lower()) for prev in recent_assistant):
+        return True
+    return False
+
+
 def repair_json_response(raw_response: str, schema_block: str) -> Optional[Dict[str, Any]]:
     repair_messages = [
         {"role": "system", "content": "You return only valid JSON and nothing else."},
@@ -523,7 +546,7 @@ def generate_agent_response(
     },
     "is_complete": true/false,
     "agent_notes": "Brief analysis of what scammer wants and your strategy",
-    "response": "Your contextual reply (2-4 sentences, address what they asked, ask for their details when it fits)"
+    "response": "Your contextual reply (1-2 sentences, address what they asked, ask for their details when it fits)"
 }"""
 
     structured_prompt = f"""
@@ -576,6 +599,16 @@ Now analyze the scammer's message and respond contextually:"""
     parsed = parse_response_json(raw_response)
     if parsed:
         parsed["response"] = trim_response_text(parsed.get("response", ""))
+        if is_repetitive_response(parsed["response"], conversation_history, session_id):
+            contextual_response = get_contextual_fallback(
+                current_message,
+                session_id,
+                conversation_history
+            )
+            parsed["response"] = trim_response_text(contextual_response)
+            notes = parsed.get("agent_notes", "")
+            parsed["agent_notes"] = f"{notes} | Replaced repetitive response".strip()
+        track_response(session_id, parsed["response"])
         return parsed
 
     if OPENROUTER_JSON_RETRY:

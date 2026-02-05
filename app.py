@@ -42,6 +42,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def run_async(func, *args, **kwargs):
+    thread = threading.Thread(target=func, args=args, kwargs=kwargs, daemon=True)
+    thread.start()
+
 def start_keep_warm():
     url = os.getenv("KEEP_WARM_URL")
     interval = int(os.getenv("KEEP_WARM_INTERVAL_SECONDS", "600"))
@@ -184,13 +188,12 @@ def honey_pot_chat():
         agent_notes = llm_response.get("agent_notes", "")
         strategy = llm_response.get("strategy", "feigning_ignorance")
         
-        # 8. Save message to database
-        save_message(session_id, "scammer", incoming_msg)
-        save_message(session_id, "agent", llm_response.get("response", ""), strategy)
-        update_session_activity(session_id, total_messages)
+        run_async(save_message, session_id, "scammer", incoming_msg)
+        run_async(save_message, session_id, "agent", llm_response.get("response", ""), strategy)
+        run_async(update_session_activity, session_id, total_messages)
         
         should_send_callback = is_complete or has_actionable_intel(combined_intel)
-        callback_already_sent = session_id in SENT_CALLBACKS or get_callback_sent(session_id)
+        callback_already_sent = session_id in SENT_CALLBACKS
         if should_send_callback and not callback_already_sent:
             callback_payload = build_callback_payload(
                 session_id=session_id,
@@ -200,8 +203,8 @@ def honey_pot_chat():
                 agent_notes=f"{strategy} | {agent_notes}"
             )
             send_callback_async(callback_payload)
-            save_intelligence(session_id, combined_intel, scam_detected, agent_notes)
-            mark_callback_sent(session_id)
+            run_async(save_intelligence, session_id, combined_intel, scam_detected, agent_notes)
+            run_async(mark_callback_sent, session_id)
             SENT_CALLBACKS.add(session_id)
             logger.info(f"🎯 Intelligence extracted! UPIs: {combined_intel.get('upi_ids')}, Banks: {combined_intel.get('bank_accounts')}")
         

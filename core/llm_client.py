@@ -22,15 +22,19 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-oss-120b")
 OPENROUTER_MODEL_2 = os.getenv("OPENROUTER_MODEL_2")
 OPENROUTER_FALLBACK = os.getenv("OPENROUTER_FALLBACK_MODEL", "google/gemini-2.5-flash-lite")
-OPENROUTER_REPAIR_MODEL = os.getenv("OPENROUTER_REPAIR_MODEL", OPENROUTER_MODEL)
 OPENROUTER_JSON_RETRY = os.getenv("OPENROUTER_JSON_RETRY", "true").lower() == "true"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-# Model priority for smart selection (higher = better)
 MODEL_PRIORITY = {
     "openai/gpt-oss-120b": 120,
     "google/gemini-2.5-flash-lite": 95
 }
+ALLOWED_MODELS = set(MODEL_PRIORITY.keys())
+if OPENROUTER_MODEL not in ALLOWED_MODELS:
+    OPENROUTER_MODEL = "openai/gpt-oss-120b"
+if OPENROUTER_FALLBACK not in ALLOWED_MODELS:
+    OPENROUTER_FALLBACK = "google/gemini-2.5-flash-lite"
+OPENROUTER_REPAIR_MODEL = os.getenv("OPENROUTER_REPAIR_MODEL", OPENROUTER_MODEL)
 
 
 def call_openrouter(
@@ -286,12 +290,12 @@ def call_models_parallel(
         Tuple of (best_response, model_used) or (None, "none") if all failed
     """
     # Models to try in parallel
-    models = [OPENROUTER_MODEL, OPENROUTER_FALLBACK]
+    models = [OPENROUTER_MODEL, OPENROUTER_MODEL_2, OPENROUTER_FALLBACK]
     # Filter out duplicates while preserving order
     models = list(dict.fromkeys(m for m in models if m))
     allowed_models = set(MODEL_PRIORITY.keys())
     models = [m for m in models if m in allowed_models]
-    if not models and OPENROUTER_FALLBACK:
+    if not models and OPENROUTER_FALLBACK in allowed_models:
         models = [OPENROUTER_FALLBACK]
     
     if not models:

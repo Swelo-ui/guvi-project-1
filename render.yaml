@@ -19,4 +19,8 @@ services:
         sync: false
       - key: GUVI_CALLBACK_URL
         value: https://hackathon.guvi.in/api/updateHoneyPotFinalResult
+      - key: KEEP_WARM_URL
+        value: https://guvi-project-1-wefr.onrender.com/health
+      - key: KEEP_WARM_INTERVAL_SECONDS
+        value: "600"
     healthCheckPath: /health

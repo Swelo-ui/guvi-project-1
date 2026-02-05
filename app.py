@@ -9,6 +9,9 @@ dynamic personas, and extracts actionable intelligence.
 import os
 import sys
 import logging
+import threading
+import time
+import requests
 from datetime import datetime
 
 from flask import Flask, request, jsonify
@@ -38,6 +41,25 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+def start_keep_warm():
+    url = os.getenv("KEEP_WARM_URL")
+    interval = int(os.getenv("KEEP_WARM_INTERVAL_SECONDS", "600"))
+    if not url:
+        return
+    
+    def ping_loop():
+        while True:
+            try:
+                requests.get(url, timeout=8)
+            except Exception:
+                pass
+            time.sleep(interval)
+    
+    thread = threading.Thread(target=ping_loop, daemon=True)
+    thread.start()
+
+start_keep_warm()
 
 # API Key for authentication
 API_KEY_SECRET = os.getenv("HONEYPOT_API_KEY", "sk_ironmask_hackathon_2026")

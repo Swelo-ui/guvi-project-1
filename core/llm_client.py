@@ -289,6 +289,10 @@ def call_models_parallel(
     models = [OPENROUTER_MODEL, OPENROUTER_FALLBACK]
     # Filter out duplicates while preserving order
     models = list(dict.fromkeys(m for m in models if m))
+    allowed_models = set(MODEL_PRIORITY.keys())
+    models = [m for m in models if m in allowed_models]
+    if not models and OPENROUTER_FALLBACK:
+        models = [OPENROUTER_FALLBACK]
     
     if not models:
         logger.error("No models configured")

@@ -507,6 +507,7 @@ def generate_agent_response(
     # Build context-aware structured prompt
     intent_hint = context_analysis.get("primary_intent", "unknown")
     phase_hint = context_analysis.get("conversation_phase", "unknown")
+    memory_hint = context_analysis.get("scammer_memory", {})
     
     schema_block = """{
     "scam_detected": true/false,
@@ -522,7 +523,7 @@ def generate_agent_response(
     },
     "is_complete": true/false,
     "agent_notes": "Brief analysis of what scammer wants and your strategy",
-    "response": "Your contextual reply (1-2 sentences, address what they asked, ask for their details when it fits)"
+    "response": "Your contextual reply (2-4 sentences, address what they asked, ask for their details when it fits)"
 }"""
 
     structured_prompt = f"""
@@ -532,6 +533,14 @@ CONTEXT ANALYSIS (use this to guide your response):
 - Scammer's likely intent: {intent_hint.upper()}
 - Conversation phase: {phase_hint}
 - Message count: {len(conversation_history) + 1}
+KNOWN SCAMMER DETAILS (do not re-ask these, acknowledge and pivot):
+- Name: {memory_hint.get("name")}
+- Employee ID: {memory_hint.get("employee_id")}
+- Bank: {memory_hint.get("bank")}
+- Phone: {memory_hint.get("phone")}
+- UPI: {memory_hint.get("upi_id")}
+- Account: {memory_hint.get("account_number")}
+- Designation: {memory_hint.get("designation")}
 
 CRITICAL STRATEGIC GUIDELINES:
 
@@ -549,9 +558,10 @@ CRITICAL STRATEGIC GUIDELINES:
 
 3. **CONSISTENCY:** Never contradict facts from earlier (name, bank, family).
 
-4. **VARIETY:** Never repeat an exact response. Check conversation history.
+4. **VARIETY:** Never repeat an exact response. Avoid reusing the same opening words from the last 2 replies.
 
 5. **NATURAL STALLING:** Use believable delays relevant to the context.
+6. **NO REDUNDANT QUESTIONS:** If a detail is already known above, do not ask it again. Ask for a different missing detail instead.
 
 RESPONSE FORMAT (respond in this exact JSON format):
 {schema_block}

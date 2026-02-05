@@ -8,4 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: ping
-        run: curl -sS --max-time 15 https://guvi-project-1-wefr.onrender.com/health > /dev/null
+        run: |
+          curl -sS --max-time 15 https://guvi-project-1-wefr.onrender.com/health > /dev/null
+          sleep 2
+          curl -sS --max-time 15 https://guvi-project-1-wefr.onrender.com/ > /dev/null

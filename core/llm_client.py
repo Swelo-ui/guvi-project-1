@@ -484,6 +484,17 @@ def sanitize_redundant_questions(
     conversation_history: List[Dict[str, str]],
     session_id: str
 ) -> str:
+    recent_agent = [
+        msg.get("text", "")
+        for msg in conversation_history
+        if msg.get("sender") == "agent"
+    ][-2:]
+    otp_loop = (
+        re.search(r'\b(which|kaun|konsi|kaunsi)\b.*\botp\b', response.lower())
+        and any(re.search(r'\botp\b', prev.lower()) for prev in recent_agent)
+    )
+    if otp_loop:
+        response = re.sub(r'[^.!?]*\botp\b[^.!?]*[.!?]?', '', response, flags=re.IGNORECASE).strip()
     detail_map = {
         "name": ("name", [r'\b(full name|poora naam|name)\b']),
         "employee_id": ("employee_id", [r'\b(employee id|staff id|id number|id)\b']),
@@ -534,6 +545,31 @@ def sanitize_redundant_questions(
             cleaned = get_contextual_fallback("", session_id, conversation_history)
         if add_prompt and add_prompt.lower() not in cleaned.lower():
             cleaned = f"{cleaned} {add_prompt}".strip()
+    return cleaned
+
+
+def sanitize_identity_conflicts(
+    response: str,
+    conversation_history: List[Dict[str, str]],
+    session_id: str
+) -> str:
+    bank_names = [
+        "sbi", "state bank", "hdfc", "icici", "axis", "pnb",
+        "kotak", "yes bank", "bob", "bank of baroda", "rbi"
+    ]
+    first_person = r'\b(my|mera|meri|mere|main|mein)\b'
+    sentences = re.split(r'(?<=[.!?])\s+', response.strip())
+    kept = []
+    removed = False
+    for sentence in sentences:
+        lowered = sentence.lower()
+        if re.search(first_person, lowered) and any(b in lowered for b in bank_names):
+            removed = True
+            continue
+        kept.append(sentence)
+    cleaned = " ".join([s for s in kept if s]).strip()
+    if removed and not cleaned:
+        cleaned = get_contextual_fallback("", session_id, conversation_history)
     return cleaned
 
 
@@ -670,6 +706,11 @@ Now analyze the scammer's message and respond contextually:"""
             conversation_history,
             session_id
         )
+        parsed["response"] = sanitize_identity_conflicts(
+            parsed["response"],
+            conversation_history,
+            session_id
+        )
         regex_intel = extract_all_intelligence(current_message)
         parsed["intelligence"] = merge_intelligence(regex_intel, parsed.get("intelligence", {}))
         if is_repetitive_response(parsed["response"], conversation_history, session_id):
@@ -685,6 +726,11 @@ Now analyze the scammer's message and respond contextually:"""
                 conversation_history,
                 session_id
             )
+            parsed["response"] = sanitize_identity_conflicts(
+                parsed["response"],
+                conversation_history,
+                session_id
+            )
             notes = parsed.get("agent_notes", "")
             parsed["agent_notes"] = f"{notes} | Replaced repetitive response".strip()
         track_response(session_id, parsed["response"])
@@ -697,6 +743,11 @@ Now analyze the scammer's message and respond contextually:"""
             repaired["response"] = sanitize_redundant_questions(
                 repaired["response"],
                 memory_hint,
+                conversation_history,
+                session_id
+            )
+            repaired["response"] = sanitize_identity_conflicts(
+                repaired["response"],
                 conversation_history,
                 session_id
             )
@@ -720,6 +771,11 @@ Now analyze the scammer's message and respond contextually:"""
     contextual_response = sanitize_redundant_questions(
         contextual_response,
         memory_hint,
+        conversation_history,
+        session_id
+    )
+    contextual_response = sanitize_identity_conflicts(
+        contextual_response,
         conversation_history,
         session_id
     )

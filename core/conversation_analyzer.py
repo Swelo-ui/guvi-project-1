@@ -219,15 +219,35 @@ REVERSE_EXTRACT_BY_CATEGORY = {
         "Tell me your ID number. For my safety.",
         "What is your staff ID? I will verify with bank.",
     ],
+    "designation": [
+        "What is your designation? I need to note properly.",
+        "Which post are you? Manager or officer?",
+        "Tell me your designation, beta."
+    ],
     "upi_id": [
         "Give me YOUR UPI ID. My son will verify.",
         "What is your official UPI? I'll cross check.",
         "Sir, share your UPI, I need to confirm.",
     ],
+    "ifsc": [
+        "What is your bank IFSC code? I will check.",
+        "IFSC code bata dijiye, beta.",
+        "Please share your IFSC. I will verify."
+    ],
     "phone_number": [
         "What is your direct number? I'll call you back.",
         "Give me official helpline. I will verify.",
         "Share your phone number, I want to save.",
+    ],
+    "email": [
+        "What is your official bank email?",
+        "Please send your bank email ID.",
+        "Your official email? I will verify with my son."
+    ],
+    "branch": [
+        "Which branch are you calling from?",
+        "Branch ka naam bata dijiye.",
+        "What is your branch? I will note down."
     ],
     "account_number": [
         "First give me YOUR account for verification.",
@@ -275,6 +295,7 @@ def get_session_data(session_id: str) -> Dict:
                 "claimed_designation": None, # "I am manager"
                 "claimed_branch": None,
                 "claimed_email": None,
+                "claimed_ifsc": None,
                 "threat_type": None,         # "digital arrest", "account blocked"
                 "urgency_level": 0,          # How urgent they're being (0-3)
                 "times_asked_otp": 0,        # How many times they asked for OTP
@@ -336,7 +357,7 @@ def extract_scammer_intel(message: str, session: Dict) -> None:
             break
     
     # Extract UPI ID
-    upi_match = re.search(r'(\w+@\w+)', message)
+    upi_match = re.search(r'([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+)', message)
     if upi_match:
         memory["claimed_upi"] = upi_match.group(1)
 
@@ -357,9 +378,17 @@ def extract_scammer_intel(message: str, session: Dict) -> None:
     if account_match:
         memory["claimed_account"] = account_match.group(1)
 
+    ifsc_match = re.search(r'\b[A-Z]{4}0[A-Z0-9]{6}\b', message.upper())
+    if ifsc_match:
+        memory["claimed_ifsc"] = ifsc_match.group(0)
+
     branch_match = re.search(r'\b([a-zA-Z ]+)\s+branch\b', message, re.IGNORECASE)
     if branch_match:
         memory["claimed_branch"] = branch_match.group(1).strip().title()
+
+    designation_match = re.search(r'\b(manager|officer|agent|executive|fraud prevention|customer care|support)\b', message_lower)
+    if designation_match:
+        memory["claimed_designation"] = designation_match.group(1).title()
     
     # Detect threat type
     if re.search(r'digital arrest|cyber crime|cbi|police|warrant', message_lower):
@@ -561,18 +590,22 @@ def get_available_extraction_category(session: Dict, phase: ConversationPhase) -
     category_to_memory = {
         "name": "claimed_name",
         "employee_id": "claimed_employee_id",
+        "designation": "claimed_designation",
         "phone_number": "claimed_phone",
         "upi_id": "claimed_upi",
+        "ifsc": "claimed_ifsc",
+        "email": "claimed_email",
+        "branch": "claimed_branch",
         "account_number": "claimed_account",
         "document": "claimed_employee_id"
     }
 
     if phase in (ConversationPhase.INITIAL_CONTACT, ConversationPhase.BUILDING_TRUST):
-        priority = ["name", "employee_id", "document"]
+        priority = ["name", "employee_id", "designation", "document"]
     elif phase in (ConversationPhase.CREATING_URGENCY, ConversationPhase.EXTRACTION_ATTEMPT):
-        priority = ["phone_number", "name", "employee_id"]
+        priority = ["phone_number", "email", "branch", "employee_id", "name"]
     else:
-        priority = ["upi_id", "account_number", "phone_number", "employee_id"]
+        priority = ["upi_id", "ifsc", "account_number", "phone_number", "email", "branch", "employee_id"]
 
     for category in priority:
         memory_key = category_to_memory.get(category)
@@ -774,6 +807,7 @@ def analyze_conversation(
             "designation": memory["claimed_designation"],
             "branch": memory["claimed_branch"],
             "email": memory["claimed_email"],
+            "ifsc": memory["claimed_ifsc"],
             "times_asked_otp": memory["times_asked_otp"],
             "urgency_level": memory["urgency_level"],
         },

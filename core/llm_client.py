@@ -115,6 +115,7 @@ from core.conversation_analyzer import (
     ScammerIntent,
     CONTEXTUAL_RESPONSES
 )
+from models.intelligence import extract_all_intelligence, merge_intelligence
 
 # Generic fallback messages (used only when context detection fails)
 # These are stalling messages that work in any context
@@ -493,7 +494,7 @@ def sanitize_redundant_questions(
         "upi_id": ("upi_id", [r'\bupi\b']),
         "account_number": ("account_number", [r'\baccount\b'])
     }
-    ask_verbs = r'(give|share|tell|send|provide|bata|bataye|batado|dijiye|dikha|likh|verify)'
+    ask_verbs = r'(give|share|tell|send|provide|bata|bataye|batado|dijiye|dikha|likh|verify|kya|kaun|kab|kis|which|what)'
     sentences = re.split(r'(?<=[.!?])\s+', response.strip())
     kept = []
     removed = False
@@ -504,7 +505,7 @@ def sanitize_redundant_questions(
             known = memory_hint.get(key)
             if not known:
                 continue
-            if re.search(ask_verbs, lowered) and any(re.search(p, lowered) for p in patterns):
+            if (re.search(ask_verbs, lowered) or "?" in lowered) and any(re.search(p, lowered) for p in patterns):
                 redundant = True
                 break
         if redundant:
@@ -602,6 +603,7 @@ def generate_agent_response(
         "upi_ids": [],
         "phishing_links": [],
         "phone_numbers": [],
+        "ifsc_codes": [],
         "suspicious_keywords": []
     },
     "is_complete": true/false,
@@ -626,6 +628,7 @@ KNOWN SCAMMER DETAILS (do not re-ask these, acknowledge and pivot):
 - Designation: {memory_hint.get("designation")}
 - Branch: {memory_hint.get("branch")}
 - Email: {memory_hint.get("email")}
+- IFSC: {memory_hint.get("ifsc")}
 
 CRITICAL STRATEGIC GUIDELINES:
 
@@ -667,6 +670,8 @@ Now analyze the scammer's message and respond contextually:"""
             conversation_history,
             session_id
         )
+        regex_intel = extract_all_intelligence(current_message)
+        parsed["intelligence"] = merge_intelligence(regex_intel, parsed.get("intelligence", {}))
         if is_repetitive_response(parsed["response"], conversation_history, session_id):
             contextual_response = get_contextual_fallback(
                 current_message,
@@ -674,6 +679,12 @@ Now analyze the scammer's message and respond contextually:"""
                 conversation_history
             )
             parsed["response"] = trim_response_text(contextual_response)
+            parsed["response"] = sanitize_redundant_questions(
+                parsed["response"],
+                memory_hint,
+                conversation_history,
+                session_id
+            )
             notes = parsed.get("agent_notes", "")
             parsed["agent_notes"] = f"{notes} | Replaced repetitive response".strip()
         track_response(session_id, parsed["response"])
@@ -683,6 +694,14 @@ Now analyze the scammer's message and respond contextually:"""
         repaired = repair_json_response(raw_response, schema_block)
         if repaired:
             repaired["response"] = trim_response_text(repaired.get("response", ""))
+            repaired["response"] = sanitize_redundant_questions(
+                repaired["response"],
+                memory_hint,
+                conversation_history,
+                session_id
+            )
+            regex_intel = extract_all_intelligence(current_message)
+            repaired["intelligence"] = merge_intelligence(regex_intel, repaired.get("intelligence", {}))
             return repaired
     
     # Fallback: use contextual response when LLM doesn't return proper JSON
@@ -698,6 +717,13 @@ Now analyze the scammer's message and respond contextually:"""
         conversation_history
     )
     contextual_response = trim_response_text(contextual_response)
+    contextual_response = sanitize_redundant_questions(
+        contextual_response,
+        memory_hint,
+        conversation_history,
+        session_id
+    )
+    fallback_intel = extract_all_intelligence(current_message)
     
     if llm_gave_text:
         # LLM spoke naturally but in wrong format - log for debugging
@@ -708,7 +734,7 @@ Now analyze the scammer's message and respond contextually:"""
             "scam_type": "unknown",
             "scammer_tactic": "unknown",
             "strategy": "contextual_engagement",
-            "intelligence": {},
+            "intelligence": fallback_intel,
             "is_complete": False,
             "agent_notes": "LLM output non-JSON text - using contextual fallback",
             "response": contextual_response  # Use contextual instead of raw LLM text
@@ -723,13 +749,7 @@ Now analyze the scammer's message and respond contextually:"""
         "scam_type": "unknown",
         "scammer_tactic": "unknown",
         "strategy": "contextual_stalling" if not is_error else "technical_confusion",
-        "intelligence": {
-            "bank_accounts": [],
-            "upi_ids": [],
-            "phishing_links": [],
-            "phone_numbers": [],
-            "suspicious_keywords": []
-        },
+        "intelligence": fallback_intel,
         "is_complete": False,
         "agent_notes": f"LLM Failure: {raw_response[:50]}..." if is_error else "Response parsing failed - using contextual fallback",
         "response": contextual_response

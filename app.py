@@ -155,11 +155,17 @@ def honey_pot_chat():
         # 4. Extract intelligence from scammer's message (regex-based)
         regex_intel = extract_all_intelligence(incoming_msg)
         
-        # Also extract from history
-        for msg in conversation_history:
-            if msg.get("sender") == "scammer":
-                hist_intel = extract_all_intelligence(msg.get("text", ""))
-                regex_intel = merge_intelligence(regex_intel, hist_intel)
+        history_messages = conversation_history or []
+        scammer_messages = [
+            msg for msg in history_messages
+            if str(msg.get("sender", "")).strip().lower() == "scammer"
+        ]
+        if not scammer_messages:
+            scammer_messages = history_messages
+        
+        for msg in scammer_messages:
+            hist_intel = extract_all_intelligence(msg.get("text", ""))
+            regex_intel = merge_intelligence(regex_intel, hist_intel)
         
         # 5. Generate LLM response with context awareness
         system_prompt = get_system_prompt(persona)

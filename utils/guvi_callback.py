@@ -92,6 +92,7 @@ def build_callback_payload(
         "extractedIntelligence": {
             "bankAccounts": intelligence.get("bank_accounts", []),
             "upiIds": intelligence.get("upi_ids", []),
+            "emails": intelligence.get("emails", []),
             "phishingLinks": intelligence.get("phishing_links", []),
             "phoneNumbers": intelligence.get("phone_numbers", []),
             "ifscCodes": intelligence.get("ifsc_codes", []),

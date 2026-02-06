@@ -184,7 +184,7 @@ def honey_pot_chat():
                 scam_detected = True
         is_complete = llm_response.get("is_complete", False) or has_actionable_intel(combined_intel)
         
-        total_messages = len(conversation_history) + 1
+        total_messages = len(conversation_history) + 2
         agent_notes = llm_response.get("agent_notes", "")
         strategy = llm_response.get("strategy", "feigning_ignorance")
         intel_summary = []
@@ -194,6 +194,8 @@ def honey_pot_chat():
             intel_summary.append(f"upi={len(combined_intel['upi_ids'])}")
         if combined_intel.get("bank_accounts"):
             intel_summary.append(f"accounts={len(combined_intel['bank_accounts'])}")
+        if combined_intel.get("emails"):
+            intel_summary.append(f"emails={len(combined_intel['emails'])}")
         if combined_intel.get("ifsc_codes"):
             intel_summary.append(f"ifsc={len(combined_intel['ifsc_codes'])}")
         if combined_intel.get("phishing_links"):
@@ -234,6 +236,7 @@ def honey_pot_chat():
             "extractedIntelligence": {
                 "bankAccounts": combined_intel.get("bank_accounts", []),
                 "upiIds": combined_intel.get("upi_ids", []),
+                "emails": combined_intel.get("emails", []),
                 "phishingLinks": combined_intel.get("phishing_links", []),
                 "phoneNumbers": combined_intel.get("phone_numbers", []),
                 "ifscCodes": combined_intel.get("ifsc_codes", []),

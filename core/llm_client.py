@@ -637,6 +637,7 @@ def generate_agent_response(
     "intelligence": {
         "bank_accounts": [],
         "upi_ids": [],
+        "emails": [],
         "phishing_links": [],
         "phone_numbers": [],
         "ifsc_codes": [],

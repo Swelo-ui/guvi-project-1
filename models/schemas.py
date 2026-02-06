@@ -44,6 +44,10 @@ class ExtractedIntelligence(BaseModel):
         default_factory=list,
         description="Extracted UPI IDs (e.g., scammer@ybl)"
     )
+    emails: List[str] = Field(
+        default_factory=list,
+        description="Extracted emails"
+    )
     phishing_links: List[str] = Field(
         default_factory=list,
         description="Malicious links sent by scammer"
@@ -75,6 +79,7 @@ class ExtractedIntelligence(BaseModel):
         return {
             "bankAccounts": self.bank_accounts,
             "upiIds": self.upi_ids,
+            "emails": self.emails,
             "phishingLinks": self.phishing_links,
             "phoneNumbers": self.phone_numbers,
             "ifscCodes": self.ifsc_codes,

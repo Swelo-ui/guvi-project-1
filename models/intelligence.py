@@ -10,6 +10,7 @@ from typing import Dict, List, Any
 # Regex patterns for intelligence extraction
 PATTERNS = {
     "upi": r'[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+',
+    "email": r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[A-Za-z]{2,}',
     "bank_account": r'\b\d{10,18}\b',
     "ifsc": r'\b[A-Z]{4}0[A-Z0-9]{6}\b',
     "phone": r'(?<!\d)(?:\+91[\s-]?)?[6-9]\d{9}(?!\d)',
@@ -65,13 +66,15 @@ def normalize_upi_ids(items: List[str], allow_unknown: bool = False) -> List[str
         handle = handle.strip(".")
         if handle not in UPI_HANDLES and not allow_unknown:
             continue
+        if handle not in UPI_HANDLES and "." in handle:
+            continue
         normalized.append(f"{user}@{handle}")
     return list(set(normalized))
 
 
 def extract_upi_ids(text: str) -> List[str]:
     matches = re.findall(PATTERNS["upi"], text, re.IGNORECASE)
-    allow_unknown = bool(re.search(r'\bupi\b', text.lower()))
+    allow_unknown = bool(re.search(r'\bupi(\s*id)?\b', text.lower()))
     return normalize_upi_ids(matches, allow_unknown=allow_unknown)
 
 
@@ -118,6 +121,11 @@ def extract_urls(text: str) -> List[str]:
     return list(set(urls + whatsapp))
 
 
+def extract_emails(text: str) -> List[str]:
+    matches = re.findall(PATTERNS["email"], text, re.IGNORECASE)
+    return list(set(m.lower() for m in matches))
+
+
 def extract_keywords(text: str) -> List[str]:
     """Extract scam-related keywords."""
     text_lower = text.lower()
@@ -126,6 +134,18 @@ def extract_keywords(text: str) -> List[str]:
         if keyword in text_lower:
             found.append(keyword)
     return found
+
+
+def normalize_keywords(items: List[str]) -> List[str]:
+    normalized = []
+    keyword_set = set(SCAM_KEYWORDS)
+    for item in items:
+        if not item:
+            continue
+        candidate = re.sub(r'\s+', ' ', str(item).strip().lower())
+        if candidate in keyword_set:
+            normalized.append(candidate)
+    return list(set(normalized))
 
 
 def extract_all_intelligence(text: str) -> Dict[str, Any]:
@@ -141,6 +161,7 @@ def extract_all_intelligence(text: str) -> Dict[str, Any]:
     return {
         "upi_ids": extract_upi_ids(text),
         "bank_accounts": extract_bank_accounts(text),
+        "emails": extract_emails(text),
         "ifsc_codes": extract_ifsc_codes(text),
         "phone_numbers": extract_phone_numbers(text),
         "phishing_links": extract_urls(text),
@@ -160,12 +181,13 @@ def merge_intelligence(existing: Dict[str, Any], new: Dict[str, Any]) -> Dict[st
         Merged intelligence dict
     """
     merged = {}
-    for key in ["upi_ids", "bank_accounts", "ifsc_codes", "phone_numbers", "phishing_links", "suspicious_keywords"]:
+    for key in ["upi_ids", "bank_accounts", "emails", "ifsc_codes", "phone_numbers", "phishing_links", "suspicious_keywords"]:
         existing_list = existing.get(key, [])
         new_list = new.get(key, [])
         merged[key] = list(set(existing_list + new_list))
     merged["upi_ids"] = normalize_upi_ids(merged.get("upi_ids", []), allow_unknown=True)
     merged["phone_numbers"] = normalize_phone_numbers(merged.get("phone_numbers", []))
+    merged["suspicious_keywords"] = normalize_keywords(merged.get("suspicious_keywords", []))
     return merged
 
 

@@ -248,6 +248,7 @@ def get_extraction_prompt() -> str:
 Analyze the scammer's message and extract any intelligence. Look for:
 - Bank account numbers (10-18 digits)
 - UPI IDs (format: name@bank or number@bank)
+- Emails
 - Phone numbers (10 digits, may have +91)
 - Phishing links (URLs, especially shortened ones)
 - IFSC codes (format: 4 letters + 0 + 6 alphanumeric)

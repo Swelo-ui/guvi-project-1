@@ -13,9 +13,12 @@ PATTERNS = {
     "email": r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[A-Za-z]{2,}',
     "bank_account": r'\b\d{10,18}\b',
     "ifsc": r'\b[A-Z]{4}0[A-Z0-9]{6}\b',
-    "phone": r'(?<!\d)(?:\+91[\s-]?)?[6-9]\d{9}(?!\d)',
+    # Enhanced phone: captures +91, international, and 10-digit numbers
+    "phone": r'(?<!\d)(?:\+?\d{1,3}[\s-]?)?[6-9]\d{9}(?!\d)',
     "url": r'https?://[^\s<>"{}|\\^`\[\]]+|bit\.ly/[^\s]+|tinyurl\.com/[^\s]+',
     "whatsapp": r'wa\.me/\d+',
+    # Fake credentials: employee IDs, fake refs
+    "fake_credential": r'(?:emp(?:loyee)?|staff|officer)[\s_-]?(?:id)?[\s:_-]*([a-zA-Z0-9]+)',
 }
 
 # Suspicious keywords indicating scam
@@ -97,21 +100,41 @@ def extract_ifsc_codes(text: str) -> List[str]:
 
 
 def normalize_phone_numbers(items: List[str]) -> List[str]:
+    """Normalize phone numbers to +91 format for Indian numbers, keep others."""
     normalized = []
     for item in items:
         if not item:
             continue
         clean = re.sub(r'[^\d+]', '', str(item))
+        # Handle +91 prefix
         if clean.startswith('+91'):
             clean = clean[3:]
+        elif clean.startswith('91') and len(clean) == 12:
+            clean = clean[2:]
+        # Valid 10-digit Indian mobile number
         if len(clean) == 10 and clean[0] in '6789':
             normalized.append(f"+91{clean}")
+        # Accept any 10-digit number
+        elif len(clean) == 10:
+            normalized.append(clean)
     return list(set(normalized))
 
 
 def extract_phone_numbers(text: str) -> List[str]:
+    """Extract phone numbers - enhanced to catch more formats."""
     matches = re.findall(PATTERNS["phone"], text)
-    return normalize_phone_numbers(matches)
+    # Also look for standalone 10-digit sequences
+    additional = re.findall(r'\b(\d{10})\b', text)
+    all_matches = list(set(matches + additional))
+    return normalize_phone_numbers(all_matches)
+
+
+def extract_fake_credentials(text: str) -> List[str]:
+    """Extract fake employee IDs, staff IDs, and similar credentials."""
+    matches = re.findall(PATTERNS["fake_credential"], text, re.IGNORECASE)
+    # Also look for patterns like "Emp123sumit"
+    additional = re.findall(r'\b[Ee]mp\d*[a-zA-Z]*\d*\b', text)
+    return list(set(m.strip() for m in matches + additional if m.strip()))
 
 
 def extract_urls(text: str) -> List[str]:
@@ -165,7 +188,9 @@ def extract_all_intelligence(text: str) -> Dict[str, Any]:
         "ifsc_codes": extract_ifsc_codes(text),
         "phone_numbers": extract_phone_numbers(text),
         "phishing_links": extract_urls(text),
-        "suspicious_keywords": extract_keywords(text)
+        "suspicious_keywords": extract_keywords(text),
+        # Internal field for tracking
+        "fake_credentials": extract_fake_credentials(text),
     }
 
 

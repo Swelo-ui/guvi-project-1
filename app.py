@@ -339,6 +339,21 @@ def whatsapp_webhook():
         persona = get_or_create_persona(session_id)
         regex_intel = extract_all_intelligence(text)
         
+        # Add sender's phone number to extracted intelligence
+        if phone_number:
+            sender_phones = regex_intel.get("phone_numbers", [])
+            # Normalize the WhatsApp sender number
+            clean_phone = phone_number.lstrip('+')
+            if clean_phone.startswith('91') and len(clean_phone) == 12:
+                normalized = f"+91{clean_phone[2:]}"
+            elif len(clean_phone) == 10 and clean_phone[0] in '6789':
+                normalized = f"+91{clean_phone}"
+            else:
+                normalized = f"+{clean_phone}" if not phone_number.startswith('+') else phone_number
+            if normalized not in sender_phones:
+                sender_phones.append(normalized)
+            regex_intel["phone_numbers"] = sender_phones
+        
         for msg in conversation_history:
             if msg.get("sender") == "scammer":
                 hist_intel = extract_all_intelligence(msg.get("text", ""))

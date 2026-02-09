@@ -1,0 +1,216 @@
+[
+  {
+    "id": "ebf9ba56-016a-41fc-bd1f-6053ccdfd58e",
+    "session_id": "whatsapp_916265643703",
+    "scammer_upi": [],
+    "scammer_bank": [],
+    "scammer_phone": [],
+    "phishing_links": [
+      "https://pharmalens.tech"
+    ],
+    "scam_keywords": [
+      "pay",
+      "otp",
+      "apk"
+    ],
+    "scam_detected": true,
+    "agent_notes": "Scammer is urging the victim to click a phishing link and provide an OTP to unlock a blocked bank account. The goal is to extract OTP, so we should feign cooperation while requesting the scammer's own verification details.",
+    "callback_sent": false,
+    "created_at": "2026-02-09T06:19:53.856023+00:00"
+  },
+  {
+    "id": "4d057b17-6a1a-46a9-8bae-d7a2290afb5a",
+    "session_id": "whatsapp_916265643703",
+    "scammer_upi": [],
+    "scammer_bank": [
+      "sbi1234"
+    ],
+    "scammer_phone": [],
+    "phishing_links": [],
+    "scam_keywords": [],
+    "scam_detected": true,
+    "agent_notes": "Scammer claims SBI account is blocked and provides a partial account number. My goal is to pretend confusion, stall, and extract their details.",
+    "callback_sent": true,
+    "created_at": "2026-02-09T05:52:59.6558+00:00"
+  },
+  {
+    "id": "5d46d448-18d4-41a1-a798-2c9a7541348e",
+    "session_id": "whatsapp_916265643703",
+    "scammer_upi": [],
+    "scammer_bank": [
+      "sbi1234"
+    ],
+    "scammer_phone": [],
+    "phishing_links": [],
+    "scam_keywords": [],
+    "scam_detected": true,
+    "agent_notes": "Scammer is claiming SBI account is blocked and providing a partial account number. My strategy is to play confused, express concern, and pivot to asking for their verification details.",
+    "callback_sent": true,
+    "created_at": "2026-02-09T05:34:49.713517+00:00"
+  },
+  {
+    "id": "8ffe01b7-af9a-4715-9e1d-d6d31b4b577b",
+    "session_id": "6b3b539a-24d4-482d-8855-6ae75868a150",
+    "scammer_upi": [],
+    "scammer_bank": [],
+    "scammer_phone": [],
+    "phishing_links": [
+      "http://amaz0n-deals.fake-site.com/claim?id=12345.",
+      "http://amaz0n-deals.fake-site.com/claim?id=12345"
+    ],
+    "scam_keywords": [
+      "expires",
+      "click"
+    ],
+    "scam_detected": true,
+    "agent_notes": "Scammer is using greed by offering a high-value item for a very low price, creating urgency. The goal is to get the user to click a phishing link. My strategy is to feign confusion, mention family, and try to extract the scammer's details. I will not click the link. | Extracted: links=2, keywords=2",
+    "callback_sent": true,
+    "created_at": "2026-02-06T08:25:51.612937+00:00"
+  },
+  {
+    "id": "d10441c9-a6e6-4b5d-a329-28a4383a0150",
+    "session_id": "3ba28029-de7c-4df3-a56f-4c4ce6923527",
+    "scammer_upi": [
+      "cashback.scam@fakeupi"
+    ],
+    "scammer_bank": [],
+    "scammer_phone": [
+      "+918765432109"
+    ],
+    "phishing_links": [],
+    "scam_keywords": [
+      "verify",
+      "pay",
+      "support",
+      "now",
+      "won",
+      "confirm",
+      "otp",
+      "cashback"
+    ],
+    "scam_detected": true,
+    "agent_notes": "Scammer is pushing for OTP and providing their UPI ID. They've also confirmed their phone number and a fake IFSC. My strategy is to feign confusion about the OTP and try to get their official bank details. | Extracted: phones=1, upi=1, ifsc=1, keywords=8",
+    "callback_sent": false,
+    "created_at": "2026-02-06T08:25:36.632996+00:00"
+  },
+  {
+    "id": "b869ef21-7c00-419e-bdea-24931f34dae1",
+    "session_id": "3ba28029-de7c-4df3-a56f-4c4ce6923527",
+    "scammer_upi": [],
+    "scammer_bank": [],
+    "scammer_phone": [
+      "+918765432109"
+    ],
+    "phishing_links": [],
+    "scam_keywords": [
+      "verify",
+      "pay",
+      "support",
+      "won",
+      "confirm",
+      "otp",
+      "cashback"
+    ],
+    "scam_detected": true,
+    "agent_notes": "Scammer is increasing urgency and asking for OTP directly. My strategy is to acknowledge the OTP request but pivot to asking for their details for verification, citing my own confusion and need for safety. | Extracted: phones=1, ifsc=1, keywords=7",
+    "callback_sent": true,
+    "created_at": "2026-02-06T08:25:26.212743+00:00"
+  },
+  {
+    "id": "cf06bb4c-3161-41f4-a565-49aa94b75461",
+    "session_id": "35014336-d0a0-42aa-bfff-453f93b0097d",
+    "scammer_upi": [
+      "scammer.fraud@fakebank"
+    ],
+    "scammer_bank": [
+      "1234567890123456"
+    ],
+    "scammer_phone": [],
+    "phishing_links": [],
+    "scam_keywords": [
+      "fraud",
+      "email",
+      "verify",
+      "urgent",
+      "now",
+      "immediately",
+      "blocked",
+      "otp"
+    ],
+    "scam_detected": true,
+    "agent_notes": "Scammer is persistent on OTP and providing account details. They've shared a fake email and a long account number. My goal is to stall and extract more information, possibly their specific bank branch or a verification number. | Extracted: upi=1, accounts=1, emails=1, keywords=8",
+    "callback_sent": false,
+    "created_at": "2026-02-06T08:24:51.930423+00:00"
+  },
+  {
+    "id": "664f0f44-7ec6-481d-9ce9-817994362caa",
+    "session_id": "4fd6f5dd-11ce-4a5d-860b-dc753695736d",
+    "scammer_upi": [],
+    "scammer_bank": [],
+    "scammer_phone": [],
+    "phishing_links": [
+      "http://amaz0n-deals.fake-site.com/claim?id=12345.",
+      "http://amaz0n-deals.fake-site.com/claim?id=12345"
+    ],
+    "scam_keywords": [
+      "expires",
+      "click"
+    ],
+    "scam_detected": true,
+    "agent_notes": "Scammer is using a lure of a cheap high-value item to trick me into clicking a phishing link. My strategy is to express confusion and ask for their verification details to waste their time and gather more intel. | Extracted: links=2, keywords=2",
+    "callback_sent": false,
+    "created_at": "2026-02-06T06:36:08.213273+00:00"
+  },
+  {
+    "id": "543894d1-5d6d-4625-9196-debc7d1f5e7d",
+    "session_id": "7dcaa62b-c300-4f41-8293-6dac001c1493",
+    "scammer_upi": [
+      "cashback.scam@fakeupi"
+    ],
+    "scammer_bank": [
+      "1234567890123456"
+    ],
+    "scammer_phone": [
+      "+919876543210"
+    ],
+    "phishing_links": [],
+    "scam_keywords": [
+      "verify",
+      "pay",
+      "pin",
+      "transfer",
+      "immediately",
+      "won",
+      "support",
+      "otp",
+      "cashback"
+    ],
+    "scam_detected": true,
+    "agent_notes": "Scammer is asking for OTP and UPI PIN directly to transfer cashback. My goal is to confuse them and ask for their details. | Extracted: phones=1, upi=1, accounts=1, keywords=9",
+    "callback_sent": false,
+    "created_at": "2026-02-06T06:35:48.013072+00:00"
+  },
+  {
+    "id": "7d9d774e-a72d-4931-825c-8b490ff27861",
+    "session_id": "204bfc5f-ff96-49d9-93c2-30ec1d51cfcd",
+    "scammer_upi": [],
+    "scammer_bank": [
+      "1234567890123456"
+    ],
+    "scammer_phone": [
+      "+919876543210"
+    ],
+    "phishing_links": [],
+    "scam_keywords": [
+      "verify",
+      "urgent",
+      "immediately",
+      "blocked",
+      "otp"
+    ],
+    "scam_detected": true,
+    "agent_notes": "Scammer is impersonating SBI security and using urgency tactics. They provided a manager's phone number and a fake email. They are repeatedly asking for OTP and account number. My next step is to acknowledge the manager's number but pivot to asking for their *specific* account number for verification, creating a deadlock. | Extracted: phones=1, accounts=1, emails=1, keywords=5",
+    "callback_sent": true,
+    "created_at": "2026-02-06T06:35:31.115451+00:00"
+  }
+]

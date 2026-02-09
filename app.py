@@ -29,9 +29,13 @@ from utils.supabase_client import (
     get_cached_persona, cache_persona, get_callback_sent
 )
 from utils.guvi_callback import send_callback_async, build_callback_payload
+from utils import whatsapp_handler as wa_handler
 
 # --- CONFIGURATION ---
 load_dotenv()
+
+# Check if WhatsApp is configured
+whatsapp_configured = wa_handler.is_whatsapp_configured()
 
 app = Flask(__name__)
 
@@ -282,7 +286,129 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "service": "Operation Iron-Mask Honeypot",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
+        "whatsapp_enabled": whatsapp_configured
+    }), 200
+
+
+# --- WHATSAPP WEBHOOK ENDPOINTS ---
+
+@app.route('/webhook', methods=['GET'])
+def whatsapp_verify():
+    """WhatsApp webhook verification - Meta sends GET to verify URL."""
+    mode = request.args.get('hub.mode', '')
+    token = request.args.get('hub.verify_token', '')
+    challenge = request.args.get('hub.challenge', '')
+    response, status = wa_handler.verify_webhook_challenge(mode, token, challenge)
+    return response, status
+
+
+@app.route('/webhook', methods=['POST'])
+def whatsapp_webhook():
+    """WhatsApp message handler - receives and processes WhatsApp messages."""
+    try:
+        data = request.get_json()
+        parsed = wa_handler.parse_webhook_message(data)
+        
+        if not parsed:
+            return jsonify({"status": "no_message"}), 200
+        
+        phone_number = parsed.get("from")
+        text = parsed.get("text", "")
+        message_id = parsed.get("message_id")
+        
+        if not text or not phone_number:
+            return jsonify({"status": "empty_message"}), 200
+        
+        logger.info(f"📱 WhatsApp from {phone_number[:6]}***: {text[:50]}...")
+        
+        # Mark as read
+        if message_id:
+            wa_handler.mark_message_read(message_id)
+        
+        # Get conversation history
+        conversation_history = wa_handler.get_conversation_history(phone_number)
+        session_id = wa_handler.format_session_id(phone_number)
+        
+        # Process through honeypot
+        persona = get_or_create_persona(session_id)
+        regex_intel = extract_all_intelligence(text)
+        
+        for msg in conversation_history:
+            if msg.get("sender") == "scammer":
+                hist_intel = extract_all_intelligence(msg.get("text", ""))
+                regex_intel = merge_intelligence(regex_intel, hist_intel)
+        
+        system_prompt = get_system_prompt(persona)
+        extraction_prompt = get_extraction_prompt()
+        
+        llm_response = generate_agent_response(
+            system_prompt=system_prompt,
+            conversation_history=conversation_history,
+            current_message=text,
+            extraction_prompt=extraction_prompt,
+            session_id=session_id
+        )
+        
+        llm_intel = llm_response.get("intelligence", {})
+        combined_intel = merge_intelligence(regex_intel, llm_intel)
+        
+        scam_detected = llm_response.get("scam_detected", True)
+        if not scam_detected and (has_actionable_intel(combined_intel) or combined_intel.get("suspicious_keywords")):
+            scam_detected = True
+        
+        total_messages = len(conversation_history) + 2
+        agent_notes = llm_response.get("agent_notes", "")
+        strategy = llm_response.get("strategy", "whatsapp_engagement")
+        reply = llm_response.get("response", "Haan ji? Network problem hai...")
+        
+        # Save to history
+        wa_handler.add_to_conversation_history(phone_number, "scammer", text)
+        wa_handler.add_to_conversation_history(phone_number, "agent", reply)
+        
+        # Save to DB
+        run_async(save_message, session_id, "scammer", text)
+        run_async(save_message, session_id, "agent", reply, strategy)
+        run_async(update_session_activity, session_id, total_messages)
+        
+        # GUVI callback
+        should_send = has_actionable_intel(combined_intel)
+        if should_send and session_id not in SENT_CALLBACKS:
+            callback_payload = build_callback_payload(
+                session_id=session_id,
+                scam_detected=scam_detected,
+                total_messages=total_messages,
+                intelligence=combined_intel,
+                agent_notes=f"WhatsApp | {strategy} | {agent_notes}"
+            )
+            send_callback_async(callback_payload)
+            run_async(save_intelligence, session_id, combined_intel, scam_detected, agent_notes)
+            run_async(mark_callback_sent, session_id)
+            SENT_CALLBACKS.add(session_id)
+            logger.info(f"🎯 WhatsApp Intel: UPIs={combined_intel.get('upi_ids')}")
+        
+        # Send reply to WhatsApp
+        wa_handler.send_text_message(phone_number, reply)
+        logger.info(f"💬 WhatsApp reply: {reply[:50]}...")
+        
+        return jsonify({
+            "status": "success",
+            "channel": "whatsapp",
+            "scamDetected": scam_detected,
+            "reply": reply
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ WhatsApp error: {str(e)}", exc_info=True)
+        return jsonify({"status": "error"}), 200
+
+
+@app.route('/whatsapp/status', methods=['GET'])
+def whatsapp_status():
+    """Check WhatsApp integration status."""
+    return jsonify({
+        "configured": whatsapp_configured,
+        "webhook_url": "/webhook"
     }), 200
 
 
@@ -291,11 +417,14 @@ def root():
     """Root endpoint with service info."""
     return jsonify({
         "service": "Operation Iron-Mask: Agentic Honeypot",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "description": "GUVI India AI Impact Buildathon - Problem Statement 2",
-        "endpoint": "/api/honey-pot",
-        "method": "POST",
-        "auth": "x-api-key header required"
+        "endpoints": {
+            "honeypot": "/api/honey-pot",
+            "whatsapp": "/webhook",
+            "health": "/health"
+        },
+        "channels": ["API", "WhatsApp"]
     }), 200
 
 

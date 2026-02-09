@@ -25,7 +25,7 @@ WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "honeypot_verify_2026
 WHATSAPP_APP_SECRET = os.getenv("WHATSAPP_APP_SECRET", "")
 
 # API Base URL
-WHATSAPP_API_URL = "https://graph.facebook.com/v18.0"
+WHATSAPP_API_URL = "https://graph.facebook.com/v21.0"
 
 
 def verify_webhook_signature(payload: bytes, signature: str) -> bool:

@@ -322,6 +322,11 @@ def whatsapp_webhook():
         
         logger.info(f"📱 WhatsApp from {phone_number[:6]}***: {text[:50]}...")
         
+        # DEBUG: Ping command
+        if text.strip().lower() == "ping":
+            wa_handler.send_text_message(phone_number, "Pong! Iron-Mask is online 🟢")
+            return jsonify({"status": "pong"}), 200
+        
         # Mark as read
         if message_id:
             wa_handler.mark_message_read(message_id)

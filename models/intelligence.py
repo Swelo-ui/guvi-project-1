@@ -101,6 +101,9 @@ def normalize_upi_ids(items: List[str], allow_unknown: bool = False) -> List[str
         # Unknown handle without dot - accept if context allows OR always allow
         # (GUVI tests use handles like @fakeupi, @fakebank)
         if allow_unknown or (not "." in handle and len(handle) >= 2):
+            # Final check: ensure handle doesn't look like a domain (ends with TLD)
+            if any(handle.lower().endswith(tld) for tld in ['.com', '.in', '.net', '.org', '.co.in', '.gov', '.edu']):
+                continue
             normalized.append(f"{user}@{handle}")
     return list(set(normalized))
 
@@ -141,6 +144,13 @@ def extract_bank_accounts(text: str) -> List[str]:
     for match in matches:
         m = match.group()
         pos = match.start()
+        
+        # Check if preceded by phone indicators (e.g. +91, 91-)
+        # Look at the 5 chars before the match
+        preceding = text[max(0, pos-5):pos]
+        if re.search(r'(?:\+91|91)[\s-]*$', preceding):
+            continue  # It's a phone number with country code
+            
         # 10-digit number starting with 6-9: could be phone OR account
         if len(m) == 10 and m[0] in '6789':
             # Use context to decide: if "account" context nearby, treat as account

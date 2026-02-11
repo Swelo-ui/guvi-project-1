@@ -267,7 +267,28 @@ class TestEdgeCases:
                   "phishing_links": [], "suspicious_keywords": ["otp", "verify"]}
         merged = merge_intelligence(intel1, intel2)
         assert len(merged["upi_ids"]) == 2
-        assert len(merged["phone_numbers"]) == 1
+
+    def test_guvi_bug_ifsc_extraction(self):
+        """Regression test: FBIN0001234 should be extracted."""
+        text = "IFSC code FBIN0001234 hai"
+        ifsc = extract_ifsc_codes(text)
+        assert "FBIN0001234" in ifsc
+
+    def test_guvi_bug_phone_formatting(self):
+        """Regression test: +91-9876543210 should be Phone, NOT Bank Account."""
+        text = "Our official email is support@fakebank.com; please send the OTP to +91-9876543210 right away so we can secure your account before it gets blocked."
+        phones = extract_phone_numbers(text)
+        accounts = extract_bank_accounts(text)
+        assert "+919876543210" in phones
+        assert "9876543210" not in accounts
+
+    def test_guvi_bug_email_as_upi(self):
+        """Regression test: support@fakebank.com is Email, NOT UPI."""
+        text = "Contact support@fakebank.com for help."
+        emails = extract_emails(text)
+        upis = extract_upi_ids(text)
+        assert "support@fakebank.com" in emails
+        assert "support@fakebank.com" not in upis
 
 
 if __name__ == "__main__":

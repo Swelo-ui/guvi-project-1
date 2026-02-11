@@ -119,10 +119,23 @@ def _deduplicate(items: List[str]) -> List[str]:
 def extract_upi_ids(text: str) -> List[str]:
     """Extract UPI IDs like name@handle or phone@handle."""
     matches = re.findall(PATTERNS["upi"], text, re.IGNORECASE)
+    
+    # Filter out obvious emails before UPI processing
+    email_matches = set(re.findall(PATTERNS["email"], text, re.IGNORECASE))
+    
     normalized = []
     for candidate in matches:
         if "@" not in candidate:
             continue
+            
+        # If this exact match is also found as an email, check if it's a known UPI handle
+        if candidate.lower() in {e.lower() for e in email_matches}:
+            _, handle = candidate.lower().split("@", 1)
+            # Only accept as UPI if it uses a known UPI handle (like @ybl, @oksbi)
+            # If it's a generic domain (sbi.co.in) and matches email pattern, it's likely just an email
+            if handle.strip(".") not in UPI_HANDLES:
+                continue
+                
         user, handle = candidate.split("@", 1)
         if len(user) < 2:
             continue
@@ -306,19 +319,20 @@ def extract_emails(text: str) -> List[str]:
     has_email_context = bool(re.search(r'\bemail\b', text.lower()))
     
     emails = []
-    # Process standard email matches
+    # Process standard email matches (these have TLDs, so we trust them more)
     for m in matches:
         _, domain = m.lower().split("@", 1) if "@" in m else ("", "")
-        domain_base = domain.split(".")[0] if "." in domain else domain
-        # If domain base is a known UPI handle, skip
-        if domain_base in UPI_HANDLES:
-            continue
+        # Remove the aggressive UPI handle check for standard emails
+        # A valid email like support@sbi.co.in shouldn't be filtered just because 'sbi' is a UPI handle
+        
         # If domain has no dot (like fakeupi, fakebank), it's likely a UPI ID
+        # (Though the regex requires a dot, so this is just a safety check)
         if "." not in domain:
             continue
         emails.append(m.lower())
     
     # If 'email' keyword is in text, also capture @-patterns with non-TLD domains
+    # This is where we need to be careful not to capture UPI IDs as emails
     if has_email_context:
         for m in at_patterns:
             lower_m = m.lower()
@@ -326,8 +340,11 @@ def extract_emails(text: str) -> List[str]:
                 continue
             _, domain = lower_m.split("@", 1) if "@" in lower_m else ("", "")
             domain_base = domain.split(".")[0] if "." in domain else domain
+            
+            # Here we MUST filter out known UPI handles because the regex is permissive
             if domain_base in UPI_HANDLES:
                 continue
+                
             # Accept non-TLD domains when 'email' context is present
             if "." not in domain and len(domain) >= 2:
                 emails.append(lower_m)

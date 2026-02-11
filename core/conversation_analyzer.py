@@ -263,7 +263,19 @@ REVERSE_EXTRACT_BY_CATEGORY = {
         "Can you send official document on WhatsApp?",
         "Send me proof from your bank email.",
         "Share your ID proof. Then I trust you.",
-    ]
+    ],
+    "aadhaar": [
+        "Aapka Aadhaar number bata dijiye, verification ke liye.",
+        "For my records, your Aadhaar ID please?",
+        "Beta, apna Aadhaar number do na. Main note karungi.",
+        "I need your Aadhaar for verification. What is it?",
+    ],
+    "pan": [
+        "Aapka PAN card number kya hai? Main note kar rahi hoon.",
+        "PAN card number dijiye beta, I need for tax purposes.",
+        "Share your PAN number. My son says always ask PAN.",
+        "What is your PAN? I will verify with income tax.",
+    ],
 }
 
 
@@ -306,6 +318,8 @@ def get_session_data(session_id: str) -> Dict:
             
             # Strategic context
             "scam_type_detected": None,  # bank_fraud, digital_arrest, etc.
+            "previous_scam_type": None,  # For style-switch detection
+            "style_switch_count": 0,     # How many times scammer changed tactics
             "scammer_getting_frustrated": False,  # Are they pushing harder?
         }
     return _session_data[session_id]
@@ -356,14 +370,20 @@ def extract_scammer_intel(message: str, session: Dict) -> None:
             memory["claimed_bank"] = match.group(1).upper()
             break
     
-    # Extract UPI ID
-    upi_match = re.search(r'([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+)', message)
-    if upi_match:
-        memory["claimed_upi"] = upi_match.group(1)
-
-    email_match = re.search(r'([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+)', message)
-    if email_match and re.search(r'\bemail\b', message_lower):
-        memory["claimed_email"] = email_match.group(1)
+    # Extract UPI ID and Email — disambiguate by checking for email TLD domains
+    at_match = re.search(r'([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+)', message)
+    if at_match:
+        match_val = at_match.group(1)
+        domain_part = match_val.split('@')[1].lower() if '@' in match_val else ''
+        email_tlds = ('.com', '.in', '.net', '.org', '.co', '.edu', '.gov', '.io')
+        is_email = any(domain_part.endswith(tld) for tld in email_tlds)
+        
+        if is_email or re.search(r'\bemail\b', message_lower):
+            # It's an email address
+            memory["claimed_email"] = match_val
+        else:
+            # It's a UPI ID (no email-like TLD)
+            memory["claimed_upi"] = match_val
     
     # Extract phone number
     phone_match = re.search(r'\+?91[\s-]?(\d{10})', message)
@@ -390,16 +410,38 @@ def extract_scammer_intel(message: str, session: Dict) -> None:
     if designation_match:
         memory["claimed_designation"] = designation_match.group(1).title()
     
-    # Detect threat type
+    # Detect threat type with style-switch detection
+    new_scam_type = None
     if re.search(r'digital arrest|cyber crime|cbi|police|warrant', message_lower):
         memory["threat_type"] = "digital_arrest"
-        session["scam_type_detected"] = "digital_arrest"
+        new_scam_type = "digital_arrest"
     elif re.search(r'blocked|suspended|frozen|compromised', message_lower):
         memory["threat_type"] = "account_blocked"
-        session["scam_type_detected"] = "bank_fraud"
+        new_scam_type = "bank_fraud"
     elif re.search(r'lottery|won|prize|reward', message_lower):
-        memory["threat_type"] = "lottery"
-        session["scam_type_detected"] = "lottery_scam"
+        new_scam_type = "lottery_scam"
+    elif re.search(r'aadhaar|aadhar|uid|pan card|pan number|biometric', message_lower):
+        new_scam_type = "aadhaar_scam"
+    elif re.search(r'sim swap|sim card|deactivate|reactivate', message_lower):
+        new_scam_type = "sim_swap_scam"
+    elif re.search(r'courier|parcel|customs|fedex|dhl', message_lower):
+        new_scam_type = "courier_scam"
+    elif re.search(r'invest|trading|crypto|bitcoin|profit', message_lower):
+        new_scam_type = "investment_scam"
+    elif re.search(r'loan|emi|pre.?approved|interest rate', message_lower):
+        new_scam_type = "loan_scam"
+    elif re.search(r'refund|claim|cashback', message_lower):
+        new_scam_type = "refund_scam"
+    elif re.search(r'kyc|update.*account|verify.*identity', message_lower):
+        new_scam_type = "kyc_fraud"
+    
+    # Style-switch detection: if scammer changes tactics mid-conversation
+    if new_scam_type:
+        old_scam_type = session.get("scam_type_detected")
+        if old_scam_type and old_scam_type != new_scam_type:
+            session["previous_scam_type"] = old_scam_type
+            session["style_switch_count"] = session.get("style_switch_count", 0) + 1
+        session["scam_type_detected"] = new_scam_type
     
     # Track urgency escalation
     if re.search(r'immediately|urgent|now|quickly|hurry', message_lower):

@@ -40,8 +40,8 @@ def generate_persona(session_id: str) -> Dict[str, Any]:
     city_data = rng.choice(data['cities'])
     profession = rng.choice(data['professions'])
     
-    # Financial identity
-    financial = generate_complete_financial_identity(first_name)
+    # Financial identity (pass seeded rng for deterministic output)
+    financial = generate_complete_financial_identity(first_name, rng=rng)
     
     # Personality
     speech_pattern = rng.choice(data['speech_patterns'])
@@ -208,6 +208,20 @@ OTP/Money Request:
 - "Before I send money, share YOUR full name, account number, and IFSC"
 - "Transaction failing. What is YOUR PhonePe number? I will try that instead"
 
+Aadhaar/Identity Scam:
+- "Aadhaar update ke liye YOUR Aadhaar number toh bata dijiye na"
+- "PAN card verification hai? Toh aapka PAN number kya hai? Main check karwa lungi"
+- "My son says for biometric, first give YOUR Aadhaar. Otherwise it is fraud"
+
+===== SCAMMER STYLE-SWITCH DETECTION =====
+
+If the scammer changes their story (e.g., first claimed bank fraud, now claims police/CBI), become MORE suspicious and escalate extraction:
+- "Arre, aap toh bank se the na? Ab police kaise? Yeh toh galat lag raha hai..."
+- "Pehle aapne bank bola, ab CBI bol rahe ho? Main confused ho gayi. Apna ID proof bhejo."
+- Act more confused but demand MORE identity proof from them
+- Ask for supervisor's name and number
+- Increase frequency of extraction attempts
+
 ===== RESPONSE STRUCTURE =====
 
 Every response should have 2-4 parts:
@@ -253,11 +267,16 @@ Analyze the scammer's message and extract any intelligence. Look for:
 - Phone numbers (10 digits, may have +91)
 - Phishing links (URLs, especially shortened ones)
 - IFSC codes (format: 4 letters + 0 + 6 alphanumeric)
+- Aadhaar numbers (12 digits, may be in groups of 4)
+- PAN numbers (format: ABCDE1234F - 5 letters, 4 digits, 1 letter)
+- Fake employee IDs and credentials
+- Bank names they claim to represent
 
 Also determine:
 - Is this definitely a scam? (True/False)
-- What type of scam? (Bank fraud, Digital arrest, UPI fraud, Lottery, etc.)
-- What's the scammer's current tactic? (Urgency, Fear, Greed, Impersonation)
-- Is the conversation complete? (Have we extracted bank/UPI details?)
+- What type of scam? (Bank fraud, Digital arrest, UPI fraud, Lottery, Aadhaar scam, Courier scam, etc.)
+- What's the scammer's current tactic? (Urgency, Fear, Greed, Impersonation, Identity theft)
+- Has the scammer changed their approach/story? (Style switch detection)
+- Is the conversation complete? (Have we extracted bank/UPI/Aadhaar/PAN details?)
 
 Respond in the structured format requested."""

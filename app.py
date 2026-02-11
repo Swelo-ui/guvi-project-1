@@ -72,6 +72,7 @@ start_keep_warm()
 # API Key for authentication
 API_KEY_SECRET = os.getenv("HONEYPOT_API_KEY", "sk_ironmask_hackathon_2026")
 SENT_CALLBACKS: dict = {}  # session_id -> count of intel categories reported
+_callbacks_lock = threading.Lock()  # Thread-safe access to SENT_CALLBACKS
 
 
 def count_intel_categories(intel: dict) -> int:
@@ -79,7 +80,8 @@ def count_intel_categories(intel: dict) -> int:
     Used to detect when new intel categories are discovered for callback re-sends.
     """
     count = 0
-    for key in ["upi_ids", "bank_accounts", "ifsc_codes", "phishing_links", "phone_numbers", "emails"]:
+    for key in ["upi_ids", "bank_accounts", "ifsc_codes", "phishing_links", "phone_numbers", "emails",
+                "fake_credentials", "aadhaar_numbers", "pan_numbers", "mentioned_banks"]:
         if intel.get(key):
             count += 1
     # Keywords count only if 3+ (they're less actionable individually)
@@ -183,8 +185,16 @@ def honey_pot_chat():
             # Determine if this is a scammer message:
             # - If 'sender' field exists, use it directly
             # - Otherwise, use alternating pattern (0=scammer, 1=agent, 2=scammer...)
-            sender = msg.get("sender", "")
-            is_scammer_msg = (sender == "scammer") if sender else (i % 2 == 0)
+            # - Additional heuristic: if no sender field, check if text looks like
+            #   our agent persona responses (Hinglish stalling) vs scammer messages
+            sender = msg.get("sender", msg.get("role", ""))
+            if sender in ("scammer", "user"):
+                is_scammer_msg = True
+            elif sender in ("agent", "assistant"):
+                is_scammer_msg = False
+            else:
+                # Fallback: alternating pattern
+                is_scammer_msg = (i % 2 == 0)
             if is_scammer_msg:
                 hist_intel = extract_all_intelligence(str(msg.get("text", "")))
                 regex_intel = merge_intelligence(regex_intel, hist_intel)
@@ -207,11 +217,13 @@ def honey_pot_chat():
         
         # 7. Determine if conversation is complete (smart detection)
         scam_detected = llm_response.get("scam_detected", False)
-        # If LLM says no scam, but regex found actionable intel or scam keywords, override
+        # If LLM says no scam, only override if REGEX extraction (not LLM) found
+        # actionable intel or scam keywords in the actual message text.
+        # This prevents false positives from LLM returning persona's own fake data.
         if not scam_detected:
-            if has_actionable_intel(combined_intel):
+            if has_actionable_intel(regex_intel):
                 scam_detected = True
-            elif len(combined_intel.get("suspicious_keywords", [])) >= 2:
+            elif len(regex_intel.get("suspicious_keywords", [])) >= 2:
                 scam_detected = True  # Multiple scam keywords = likely a scam
         is_complete = llm_response.get("is_complete", False) or has_actionable_intel(combined_intel)
         
@@ -246,7 +258,8 @@ def honey_pot_chat():
         )
         # Count current intel categories for re-send detection
         current_intel_count = count_intel_categories(combined_intel)
-        previous_intel_count = SENT_CALLBACKS.get(session_id, 0)
+        with _callbacks_lock:
+            previous_intel_count = SENT_CALLBACKS.get(session_id, 0)
         # Allow re-send if new intel categories discovered since last callback
         has_new_categories = current_intel_count > previous_intel_count
         if should_send_callback and (session_id not in SENT_CALLBACKS or has_new_categories):
@@ -260,7 +273,8 @@ def honey_pot_chat():
             send_callback_async(callback_payload)
             run_async(save_intelligence, session_id, combined_intel, scam_detected, agent_notes)
             run_async(mark_callback_sent, session_id)
-            SENT_CALLBACKS[session_id] = current_intel_count
+            with _callbacks_lock:
+                SENT_CALLBACKS[session_id] = current_intel_count
             logger.info(f"🎯 Intelligence extracted! UPIs: {combined_intel.get('upi_ids')}, Banks: {combined_intel.get('bank_accounts')}")
         
         # 10. Build response
@@ -278,7 +292,11 @@ def honey_pot_chat():
                 "phishingLinks": combined_intel.get("phishing_links", []),
                 "phoneNumbers": combined_intel.get("phone_numbers", []),
                 "ifscCodes": combined_intel.get("ifsc_codes", []),
-                "suspiciousKeywords": combined_intel.get("suspicious_keywords", [])
+                "suspiciousKeywords": combined_intel.get("suspicious_keywords", []),
+                "fakeCredentials": combined_intel.get("fake_credentials", []),
+                "aadhaarNumbers": combined_intel.get("aadhaar_numbers", []),
+                "panNumbers": combined_intel.get("pan_numbers", []),
+                "mentionedBanks": combined_intel.get("mentioned_banks", [])
             },
             "agentNotes": agent_notes,
             "reply": llm_response.get("response", "Haan ji? I am not understanding...")
@@ -330,7 +348,11 @@ def honey_pot_chat():
                 "phishingLinks": fallback_intel.get("phishing_links", []),
                 "phoneNumbers": fallback_intel.get("phone_numbers", []),
                 "ifscCodes": fallback_intel.get("ifsc_codes", []),
-                "suspiciousKeywords": fallback_intel.get("suspicious_keywords", [])
+                "suspiciousKeywords": fallback_intel.get("suspicious_keywords", []),
+                "fakeCredentials": fallback_intel.get("fake_credentials", []),
+                "aadhaarNumbers": fallback_intel.get("aadhaar_numbers", []),
+                "panNumbers": fallback_intel.get("pan_numbers", []),
+                "mentionedBanks": fallback_intel.get("mentioned_banks", [])
             },
             "agentNotes": "Error occurred, using fallback response with regex extraction",
             "reply": get_random_fallback(fallback_session_id)
@@ -451,7 +473,8 @@ def whatsapp_webhook():
         # GUVI callback
         should_send = has_actionable_intel(combined_intel)
         current_intel_count = count_intel_categories(combined_intel)
-        previous_intel_count = SENT_CALLBACKS.get(session_id, 0)
+        with _callbacks_lock:
+            previous_intel_count = SENT_CALLBACKS.get(session_id, 0)
         has_new_categories = current_intel_count > previous_intel_count
         if should_send and (session_id not in SENT_CALLBACKS or has_new_categories):
             callback_payload = build_callback_payload(
@@ -464,7 +487,8 @@ def whatsapp_webhook():
             send_callback_async(callback_payload)
             run_async(save_intelligence, session_id, combined_intel, scam_detected, agent_notes)
             run_async(mark_callback_sent, session_id)
-            SENT_CALLBACKS[session_id] = current_intel_count
+            with _callbacks_lock:
+                SENT_CALLBACKS[session_id] = current_intel_count
             logger.info(f"🎯 WhatsApp Intel: UPIs={combined_intel.get('upi_ids')}")
         
         # Send reply to WhatsApp

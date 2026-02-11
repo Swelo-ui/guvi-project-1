@@ -378,5 +378,130 @@ class TestEdgeCases:
         assert "+919876543210" in phones
 
 
+class TestAdvancedExtraction:
+    """Tests for Phase 2 advanced extraction: Aadhaar, PAN, bank names."""
+
+    def test_aadhaar_extraction_spaced(self):
+        """Aadhaar number in spaced format should be extracted."""
+        from models.intelligence import extract_aadhaar_numbers
+        text = "Your Aadhaar number 4321 8765 2109 needs verification"
+        result = extract_aadhaar_numbers(text)
+        assert "432187652109" in result
+
+    def test_aadhaar_extraction_continuous(self):
+        """Aadhaar number as continuous digits with context should be extracted."""
+        from models.intelligence import extract_aadhaar_numbers
+        text = "For Aadhaar verification, send 432187652109 to us"
+        result = extract_aadhaar_numbers(text)
+        assert "432187652109" in result
+
+    def test_aadhaar_rejects_starting_with_01(self):
+        """Aadhaar cannot start with 0 or 1."""
+        from models.intelligence import extract_aadhaar_numbers
+        text = "Your aadhaar is 0123 4567 8901"
+        result = extract_aadhaar_numbers(text)
+        assert len(result) == 0, f"Should reject Aadhaar starting with 0, got: {result}"
+
+    def test_pan_extraction(self):
+        """PAN card number should be extracted."""
+        from models.intelligence import extract_pan_numbers
+        text = "Send your PAN ABCDE1234F for loan verification"
+        result = extract_pan_numbers(text)
+        assert "ABCDE1234F" in result
+
+    def test_pan_not_random_text(self):
+        """Random text should not be extracted as PAN."""
+        from models.intelligence import extract_pan_numbers
+        text = "Hello, how are you today?"
+        result = extract_pan_numbers(text)
+        assert len(result) == 0
+
+    def test_bank_name_extraction_single(self):
+        """Single-word bank names should be extracted."""
+        from models.intelligence import extract_mentioned_banks
+        text = "I am calling from HDFC Bank headquarters"
+        result = extract_mentioned_banks(text)
+        assert "hdfc" in result
+
+    def test_bank_name_extraction_multi_word(self):
+        """Multi-word bank names like 'yes bank' should be extracted."""
+        from models.intelligence import extract_mentioned_banks
+        text = "This is Yes Bank customer care calling"
+        result = extract_mentioned_banks(text)
+        assert "yes bank" in result
+
+    def test_extract_all_includes_new_fields(self):
+        """extract_all_intelligence should return all new fields."""
+        intel = extract_all_intelligence("Send Aadhaar 4321 8765 2109 and PAN ABCDE1234F to SBI branch")
+        assert "aadhaar_numbers" in intel
+        assert "pan_numbers" in intel
+        assert "mentioned_banks" in intel
+        assert "432187652109" in intel["aadhaar_numbers"]
+        assert "ABCDE1234F" in intel["pan_numbers"]
+        assert "sbi" in intel["mentioned_banks"]
+
+    def test_has_actionable_intel_with_phone(self):
+        """Phone numbers alone should now trigger actionable intel."""
+        assert has_actionable_intel({"phone_numbers": ["+919876543210"], "upi_ids": [],
+                                     "bank_accounts": [], "phishing_links": [], "ifsc_codes": [],
+                                     "aadhaar_numbers": [], "pan_numbers": []})
+
+    def test_merge_preserves_new_fields(self):
+        """merge_intelligence should preserve aadhaar, pan, mentioned_banks."""
+        from models.intelligence import merge_intelligence
+        intel1 = {"upi_ids": [], "bank_accounts": [], "emails": [], "ifsc_codes": [],
+                  "phone_numbers": [], "phishing_links": [], "suspicious_keywords": [],
+                  "fake_credentials": [], "aadhaar_numbers": ["432187652109"],
+                  "pan_numbers": [], "mentioned_banks": ["sbi"]}
+        intel2 = {"upi_ids": [], "bank_accounts": [], "emails": [], "ifsc_codes": [],
+                  "phone_numbers": [], "phishing_links": [], "suspicious_keywords": [],
+                  "fake_credentials": [], "aadhaar_numbers": [],
+                  "pan_numbers": ["ABCDE1234F"], "mentioned_banks": ["hdfc"]}
+        merged = merge_intelligence(intel1, intel2)
+        assert "432187652109" in merged["aadhaar_numbers"]
+        assert "ABCDE1234F" in merged["pan_numbers"]
+        assert "sbi" in merged["mentioned_banks"]
+        assert "hdfc" in merged["mentioned_banks"]
+
+    def test_new_scam_keywords_detected(self):
+        """New keywords like sim swap, biometric, aadhaar number should be detected."""
+        from models.intelligence import extract_keywords
+        kw1 = extract_keywords("Your SIM card will be deactivate unless you verify biometric")
+        assert "sim card" in kw1
+        assert "deactivate" in kw1
+        assert "biometric" in kw1
+
+    def test_style_switch_detection(self):
+        """Conversation analyzer should detect when scammer changes tactics."""
+        from core.conversation_analyzer import get_session_data, extract_scammer_intel
+        session = get_session_data("test_style_switch_session_99")
+        # First message: bank fraud
+        extract_scammer_intel("Your SBI account is blocked. Share OTP now.", session)
+        assert session["scam_type_detected"] == "bank_fraud"
+        # Second message: switches to digital arrest
+        extract_scammer_intel("This is CBI. You are under digital arrest.", session)
+        assert session["scam_type_detected"] == "digital_arrest"
+        assert session["previous_scam_type"] == "bank_fraud"
+        assert session["style_switch_count"] == 1
+
+    def test_bank_name_from_ifsc_prefix(self):
+        """Bank names should be extracted from IFSC code prefixes."""
+        from models.intelligence import extract_mentioned_banks
+        # HDFC appears only in IFSC code, not as standalone text
+        result = extract_mentioned_banks("Transfer to account 56789012345678, IFSC: HDFC0001234")
+        assert "hdfc" in result
+        # SBI from IFSC
+        result2 = extract_mentioned_banks("IFSC: SBIN0005432")
+        assert "sbi" in result2
+        # PNB from IFSC
+        result3 = extract_mentioned_banks("IFSC: PUNB0123400")
+        assert "pnb" in result3
+        # Multiple banks: one in text, one in IFSC
+        result4 = extract_mentioned_banks("SBI said transfer to IFSC: HDFC0001234")
+        assert "sbi" in result4
+        assert "hdfc" in result4
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
+

@@ -96,7 +96,11 @@ def build_callback_payload(
             "phishingLinks": list(set(intelligence.get("phishing_links", []))),
             "phoneNumbers": list(set(intelligence.get("phone_numbers", []))),
             "ifscCodes": list(set(intelligence.get("ifsc_codes", []))),
-            "suspiciousKeywords": list(set(intelligence.get("suspicious_keywords", [])))
+            "suspiciousKeywords": list(set(intelligence.get("suspicious_keywords", []))),
+            "fakeCredentials": list(set(intelligence.get("fake_credentials", []))),
+            "aadhaarNumbers": list(set(intelligence.get("aadhaar_numbers", []))),
+            "panNumbers": list(set(intelligence.get("pan_numbers", []))),
+            "mentionedBanks": list(set(intelligence.get("mentioned_banks", [])))
         },
         "agentNotes": agent_notes
     }

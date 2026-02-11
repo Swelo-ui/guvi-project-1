@@ -21,6 +21,10 @@ PATTERNS = {
     "whatsapp": r'wa\.me/\d+',
     # Fake credentials: employee IDs, fake refs
     "fake_credential": r'(?:emp(?:loyee)?|staff|officer)[\s_-]?(?:id)?[\s:_-]*([a-zA-Z0-9]+)',
+    # Aadhaar: 12 digits, optionally in groups of 4 separated by spaces/dashes
+    "aadhaar": r'\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b',
+    # PAN: ABCDE1234F format (5 uppercase, 4 digits, 1 uppercase)
+    "pan": r'\b[A-Z]{5}\d{4}[A-Z]\b',
 }
 
 # Suspicious keywords indicating scam
@@ -45,6 +49,9 @@ SCAM_KEYWORDS = [
     "whatsapp", "telegram", "sms", "email",
     # Identity
     "aadhaar", "pan", "kyc update", "video kyc",
+    "aadhaar number", "pan card", "pan number", "aeps", "biometric", "fingerprint", "uidai",
+    # SIM / Account takeover
+    "sim swap", "sim card", "deactivate", "reactivate", "reissue",
     # Payment tactics
     "qr", "scan", "upi collect", "payment request", "request money",
     # Delivery / Courier scams
@@ -56,6 +63,36 @@ SCAM_KEYWORDS = [
     # Refund scams
     "claim", "pending", "approved", "eligible",
 ]
+
+# Known Indian bank names for extraction from scammer messages
+INDIAN_BANK_NAMES = {
+    "sbi": "State Bank of India",
+    "hdfc": "HDFC Bank",
+    "icici": "ICICI Bank",
+    "axis": "Axis Bank",
+    "pnb": "Punjab National Bank",
+    "bob": "Bank of Baroda",
+    "kotak": "Kotak Mahindra Bank",
+    "yes bank": "Yes Bank",
+    "rbi": "Reserve Bank of India",
+    "canara": "Canara Bank",
+    "union bank": "Union Bank of India",
+    "idbi": "IDBI Bank",
+    "indusind": "IndusInd Bank",
+    "bandhan": "Bandhan Bank",
+    "federal bank": "Federal Bank",
+    "idfc": "IDFC First Bank",
+    "rbl": "RBL Bank",
+    "uco": "UCO Bank",
+    "indian bank": "Indian Bank",
+    "boi": "Bank of India",
+    "central bank": "Central Bank of India",
+    "syndicate": "Syndicate Bank",
+    "paytm": "Paytm Payments Bank",
+    "airtel": "Airtel Payments Bank",
+    "lic": "LIC of India",
+    "post office": "India Post Payments Bank",
+}
 
 
 UPI_HANDLES = {
@@ -286,6 +323,105 @@ def extract_fake_credentials(text: str) -> List[str]:
     return _deduplicate([m.strip() for m in matches + additional if m.strip()])
 
 
+def extract_aadhaar_numbers(text: str) -> List[str]:
+    """Extract Aadhaar numbers (12-digit Indian identity numbers).
+    Formats: 1234 5678 9012, 1234-5678-9012, 123456789012
+    Filters out numbers that could be phone numbers or bank accounts.
+    """
+    matches = re.findall(PATTERNS["aadhaar"], text)
+    result = []
+    for m in matches:
+        # Clean to digits only
+        digits = re.sub(r'[^\d]', '', m)
+        if len(digits) != 12:
+            continue
+        # Filter: Aadhaar cannot start with 0 or 1
+        if digits[0] in ('0', '1'):
+            continue
+        # Check context: look for Aadhaar-related keywords nearby
+        aadhaar_context = re.search(
+            r'\b(aadhaar|aadhar|uid|uidai|adhar|identity|id proof|verification)\b',
+            text.lower()
+        )
+        # If the number starts with 2-9 and has Aadhaar context, or if it clearly
+        # doesn't look like a phone or bank account, accept it
+        if aadhaar_context or (not text.strip().replace(' ', '').replace('-', '').isdigit()):
+            result.append(digits)
+    return _deduplicate(result)
+
+
+def extract_pan_numbers(text: str) -> List[str]:
+    """Extract PAN card numbers (Indian tax ID).
+    Format: ABCDE1234F (5 letters, 4 digits, 1 letter)
+    """
+    matches = re.findall(PATTERNS["pan"], text.upper())
+    result = []
+    for m in matches:
+        # Validate PAN structure:
+        # 4th char indicates type: C=Company, P=Person, H=HUF, F=Firm, A=AOP, T=Trust, etc.
+        # Most scammers use personal PANs starting with P in 4th position
+        if len(m) == 10:
+            result.append(m.upper())
+    return _deduplicate(result)
+
+
+
+# IFSC code prefix → bank short name mapping
+IFSC_PREFIX_TO_BANK = {
+    "SBIN": "sbi",
+    "HDFC": "hdfc",
+    "ICIC": "icici",
+    "UTIB": "axis",
+    "PUNB": "pnb",
+    "BARB": "bob",
+    "KKBK": "kotak",
+    "YESB": "yes bank",
+    "CNRB": "canara",
+    "UBIN": "union bank",
+    "IBKL": "idbi",
+    "INDB": "indusind",
+    "BDBL": "bandhan",
+    "FDRL": "federal bank",
+    "IDFB": "idfc",
+    "RATN": "rbl",
+    "UCBA": "uco",
+    "IDIB": "indian bank",
+    "BKID": "boi",
+    "CBIN": "central bank",
+    "PAYT": "paytm",
+    "AIRP": "airtel",
+}
+
+
+def extract_mentioned_banks(text: str) -> List[str]:
+    """Extract bank names mentioned in the scammer's message.
+    Returns lowercase short names of identified banks.
+    Also extracts bank names from IFSC code prefixes (e.g., HDFC from HDFC0001234).
+    """
+    text_lower = text.lower()
+    found = []
+    for bank_key in INDIAN_BANK_NAMES:
+        # Use word boundary for short bank names, substring for multi-word
+        if " " in bank_key:
+            if bank_key in text_lower:
+                found.append(bank_key)
+        else:
+            pattern = r'\b' + re.escape(bank_key) + r'\b'
+            if re.search(pattern, text_lower):
+                found.append(bank_key)
+
+    # Also extract bank names from IFSC code prefixes
+    ifsc_codes = re.findall(PATTERNS["ifsc"], text.upper())
+    for ifsc in ifsc_codes:
+        prefix = ifsc[:4]
+        if prefix in IFSC_PREFIX_TO_BANK:
+            bank_name = IFSC_PREFIX_TO_BANK[prefix]
+            if bank_name not in found:
+                found.append(bank_name)
+
+    return _deduplicate(found)
+
+
 def extract_urls(text: str) -> List[str]:
     """Extract URLs (potential phishing links), including protocol-less shortener URLs."""
     urls = re.findall(PATTERNS["url"], text)
@@ -401,6 +537,10 @@ def extract_all_intelligence(text: str) -> Dict[str, Any]:
         "suspicious_keywords": extract_keywords(text),
         # Internal field for tracking
         "fake_credentials": extract_fake_credentials(text),
+        # Advanced extraction fields
+        "aadhaar_numbers": extract_aadhaar_numbers(text),
+        "pan_numbers": extract_pan_numbers(text),
+        "mentioned_banks": extract_mentioned_banks(text),
     }
 
 
@@ -416,7 +556,9 @@ def merge_intelligence(existing: Dict[str, Any], new: Dict[str, Any]) -> Dict[st
         Merged intelligence dict
     """
     merged = {}
-    for key in ["upi_ids", "bank_accounts", "emails", "ifsc_codes", "phone_numbers", "phishing_links", "suspicious_keywords", "fake_credentials"]:
+    for key in ["upi_ids", "bank_accounts", "emails", "ifsc_codes", "phone_numbers",
+                "phishing_links", "suspicious_keywords", "fake_credentials",
+                "aadhaar_numbers", "pan_numbers", "mentioned_banks"]:
         existing_list = existing.get(key, [])
         new_list = new.get(key, [])
         merged[key] = _deduplicate(existing_list + new_list)
@@ -441,5 +583,8 @@ def has_actionable_intel(intelligence: Dict[str, Any]) -> bool:
         intelligence.get("upi_ids") or
         intelligence.get("bank_accounts") or
         intelligence.get("phishing_links") or
-        intelligence.get("ifsc_codes")
+        intelligence.get("ifsc_codes") or
+        intelligence.get("phone_numbers") or
+        intelligence.get("aadhaar_numbers") or
+        intelligence.get("pan_numbers")
     )

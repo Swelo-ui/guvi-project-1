@@ -412,17 +412,50 @@ def clean_json_string(json_str: str) -> str:
         # Revert changes for 's or I"m
         json_str = json_str.replace('I"m', "I'm").replace('it"s', "it's").replace('don"t', "don't")
 
-    # 5. Fix Python constants to JSON constants (including in lists)
-    json_str = re.sub(r':\s*\bTrue\b', ': true', json_str)
-    json_str = re.sub(r':\s*\bFalse\b', ': false', json_str)
-    json_str = re.sub(r':\s*\bNone\b', ': null', json_str)
-    # Also handle in lists like [True, False]
-    json_str = re.sub(r'\[\s*\bTrue\b', '[true', json_str)
-    json_str = re.sub(r'\[\s*\bFalse\b', '[false', json_str)
-    json_str = re.sub(r'\[\s*\bNone\b', '[null', json_str)
-    json_str = re.sub(r',\s*\bTrue\b', ', true', json_str)
-    json_str = re.sub(r',\s*\bFalse\b', ', false', json_str)
-    json_str = re.sub(r',\s*\bNone\b', ', null', json_str)
+    # 5. Fix Python constants to JSON constants — ONLY outside quoted strings.
+    # Walk through the string tracking whether we're inside quotes.
+    def _fix_python_constants(s: str) -> str:
+        result = []
+        in_string = False
+        escape_next = False
+        i = 0
+        while i < len(s):
+            ch = s[i]
+            if escape_next:
+                result.append(ch)
+                escape_next = False
+                i += 1
+                continue
+            if ch == '\\':
+                escape_next = True
+                result.append(ch)
+                i += 1
+                continue
+            if ch == '"':
+                in_string = not in_string
+                result.append(ch)
+                i += 1
+                continue
+            if in_string:
+                result.append(ch)
+                i += 1
+                continue
+            # Outside string — check for True/False/None as standalone words
+            for py_val, json_val in [('True', 'true'), ('False', 'false'), ('None', 'null')]:
+                if s[i:i+len(py_val)] == py_val:
+                    # Verify it's a whole word (not part of a larger identifier)
+                    before_ok = (i == 0 or s[i-1] in ' ,:[')
+                    after_pos = i + len(py_val)
+                    after_ok = (after_pos >= len(s) or s[after_pos] in ' ,]}\n\r')
+                    if before_ok and after_ok:
+                        result.append(json_val)
+                        i += len(py_val)
+                        break
+            else:
+                result.append(ch)
+                i += 1
+        return ''.join(result)
+    json_str = _fix_python_constants(json_str)
 
     return json_str
 

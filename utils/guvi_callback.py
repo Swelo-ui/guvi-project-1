@@ -90,13 +90,13 @@ def build_callback_payload(
         "scamDetected": scam_detected,
         "totalMessagesExchanged": total_messages,
         "extractedIntelligence": {
-            "bankAccounts": intelligence.get("bank_accounts", []),
-            "upiIds": intelligence.get("upi_ids", []),
-            "emails": intelligence.get("emails", []),
-            "phishingLinks": intelligence.get("phishing_links", []),
-            "phoneNumbers": intelligence.get("phone_numbers", []),
-            "ifscCodes": intelligence.get("ifsc_codes", []),
-            "suspiciousKeywords": intelligence.get("suspicious_keywords", [])
+            "bankAccounts": list(set(intelligence.get("bank_accounts", []))),
+            "upiIds": list(set(intelligence.get("upi_ids", []))),
+            "emails": list(set(intelligence.get("emails", []))),
+            "phishingLinks": list(set(intelligence.get("phishing_links", []))),
+            "phoneNumbers": list(set(intelligence.get("phone_numbers", []))),
+            "ifscCodes": list(set(intelligence.get("ifsc_codes", []))),
+            "suspiciousKeywords": list(set(intelligence.get("suspicious_keywords", [])))
         },
         "agentNotes": agent_notes
     }

@@ -162,23 +162,36 @@ def save_intelligence(
         return False
     
     try:
+        # Deduplicate and clean data before saving
         data = {
             "session_id": session_id,
-            "scammer_upi": intelligence.get("upi_ids", []),
-            "scammer_bank": intelligence.get("bank_accounts", []),
-            "scammer_phone": intelligence.get("phone_numbers", []),
-            "phishing_links": intelligence.get("phishing_links", []),
-            "scam_keywords": intelligence.get("suspicious_keywords", []),
+            "scammer_upi": list(set(intelligence.get("upi_ids", []))),
+            "scammer_bank": list(set(intelligence.get("bank_accounts", []))),
+            "scammer_phone": list(set(intelligence.get("phone_numbers", []))),
+            "phishing_links": list(set(intelligence.get("phishing_links", []))),
+            "scam_keywords": list(set(intelligence.get("suspicious_keywords", []))),
             "scam_detected": scam_detected,
             "agent_notes": agent_notes,
             "callback_sent": False,
             "created_at": datetime.utcnow().isoformat()
         }
         
-        url = f"{REST_URL}/intelligence"
-        response = httpx.post(url, headers=get_headers(), json=data, timeout=10)
+        # Check if we already have intelligence for this session to update instead of insert
+        # This prevents duplicate rows in the intelligence table for the same session
+        check_url = f"{REST_URL}/intelligence?session_id=eq.{session_id}&select=id"
+        check_resp = httpx.get(check_url, headers=get_headers(), timeout=5)
         
-        if response.status_code in [200, 201]:
+        if check_resp.status_code == 200 and check_resp.json():
+            # Update existing record
+            intel_id = check_resp.json()[0]['id']
+            url = f"{REST_URL}/intelligence?id=eq.{intel_id}"
+            response = httpx.patch(url, headers=get_headers(), json=data, timeout=10)
+        else:
+            # Insert new record
+            url = f"{REST_URL}/intelligence"
+            response = httpx.post(url, headers=get_headers(), json=data, timeout=10)
+        
+        if response.status_code in [200, 201, 204]:
             logger.info(f"Saved intelligence for session: {session_id}")
             return True
         return False

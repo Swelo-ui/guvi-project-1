@@ -102,28 +102,39 @@ def normalize_upi_ids(items: List[str], allow_unknown: bool = False) -> List[str
         # (GUVI tests use handles like @fakeupi, @fakebank)
         if allow_unknown or (not "." in handle and len(handle) >= 2):
             normalized.append(f"{user}@{handle}")
-    return list(set(normalized))
+    return _deduplicate(normalized)
+
+
+def _deduplicate(items: List[str]) -> List[str]:
+    """Deduplicate list while preserving order."""
+    seen = set()
+    result = []
+    for item in items:
+        if item and item not in seen:
+            result.append(item)
+            seen.add(item)
+    return result
 
 
 def extract_upi_ids(text: str) -> List[str]:
-    """Extract UPI IDs from text, being permissive with unknown handles."""
+    """Extract UPI IDs like name@handle or phone@handle."""
     matches = re.findall(PATTERNS["upi"], text, re.IGNORECASE)
-    # Check for UPI context in the text
-    has_upi_context = bool(re.search(
-        r'\b(upi|pay|send|transfer|receive|paytm|phonepe|gpay|bhim)\b',
-        text.lower()
-    ))
-    # Filter out obvious emails before UPI processing
-    email_matches = set(re.findall(PATTERNS["email"], text, re.IGNORECASE))
-    upi_candidates = [m for m in matches if m.lower() not in {e.lower() for e in email_matches}]
-    # Also include matches that look like emails IF they have UPI-like handles
-    for m in matches:
-        if m.lower() in {e.lower() for e in email_matches}:
-            _, handle = m.lower().split("@", 1) if "@" in m else ("", "")
-            if handle.strip(".") in UPI_HANDLES:
-                upi_candidates.append(m)
-    # Be permissive: allow unknown handles (GUVI tests use non-standard ones)
-    return normalize_upi_ids(upi_candidates, allow_unknown=True)
+    normalized = []
+    for candidate in matches:
+        if "@" not in candidate:
+            continue
+        user, handle = candidate.split("@", 1)
+        if len(user) < 2:
+            continue
+        
+        handle = handle.lower()
+        # Basic validation: handle shouldn't contain spaces or unusual characters
+        if not re.match(r'^[a-z0-9.-]+$', handle):
+            continue
+            
+        normalized.append(f"{user}@{handle}")
+    
+    return _deduplicate(normalized)
 
 
 def _has_context(text: str, position: int, keywords: List[str], window: int = 80) -> bool:
@@ -135,41 +146,26 @@ def _has_context(text: str, position: int, keywords: List[str], window: int = 80
 
 
 def extract_bank_accounts(text: str) -> List[str]:
-    """Extract potential bank account numbers using context-aware disambiguation."""
-    matches = list(re.finditer(PATTERNS["bank_account"], text))
+    """Extract bank account numbers (10-16 digits) with context validation."""
     valid = []
-    for match in matches:
-        m = match.group()
-        pos = match.start()
-        
-        # Check if preceded by phone indicators (e.g. +91, 91-)
-        # Look at the 5 chars before the match
-        preceding = text[max(0, pos-5):pos]
-        if re.search(r'(?:\+91|91)[\s-]*$', preceding):
-            continue  # It's a phone number with country code
+    for m in re.finditer(PATTERNS["bank_account"], text):
+        acc = m.group(0)
+        # Context check to avoid phone numbers (most Indian accounts are > 10 digits)
+        # or if 10 digits, they usually don't start with 6-9 unless it's a phone-linked account
+        if len(acc) == 10 and acc[0] in '6789':
+            # Only accept if "account" or "number" keywords are nearby
+            context = text[max(0, m.start()-30):min(len(text), m.end()+30)].lower()
+            if any(kw in context for kw in ['account', 'acc', 'no', 'a/c', 'number']):
+                valid.append(acc)
+        else:
+            valid.append(acc)
             
-        # 10-digit number starting with 6-9: could be phone OR account
-        if len(m) == 10 and m[0] in '6789':
-            # Use context to decide: if "account" context nearby, treat as account
-            has_account_ctx = _has_context(text, pos, ACCOUNT_CONTEXT_KEYWORDS)
-            has_phone_ctx = _has_context(text, pos, PHONE_CONTEXT_KEYWORDS)
-            # Prefer account context: if both are present or only account, treat as account
-            if has_account_ctx:
-                valid.append(m)  # Treat as bank account
-            # If only phone context or no context, skip (caught by phone extractor)
-            continue
-        # Numbers 11-18 digits are likely bank accounts
-        if 11 <= len(m) <= 18:
-            valid.append(m)
-        # 10-digit numbers NOT starting with 6-9 are likely accounts
-        elif len(m) == 10 and m[0] not in '6789':
-            valid.append(m)
-    return list(set(valid))
+    return _deduplicate(valid)
 
 
 def extract_ifsc_codes(text: str) -> List[str]:
     """Extract IFSC codes."""
-    return list(set(re.findall(PATTERNS["ifsc"], text.upper())))
+    return _deduplicate(re.findall(PATTERNS["ifsc"], text.upper()))
 
 
 def normalize_phone_numbers(items: List[str]) -> List[str]:
@@ -190,7 +186,7 @@ def normalize_phone_numbers(items: List[str]) -> List[str]:
         # Accept any 10-digit number
         elif len(clean) == 10:
             normalized.append(clean)
-    return list(set(normalized))
+    return _deduplicate(normalized)
 
 
 def normalize_bank_accounts(items: list) -> list:
@@ -206,7 +202,7 @@ def normalize_bank_accounts(items: list) -> list:
         # Bank accounts must be at least 10 digits
         if len(clean) >= 10:
             valid.append(clean)
-    return list(set(valid))
+    return _deduplicate(valid)
 
 
 def extract_phone_numbers(text: str) -> List[str]:
@@ -266,7 +262,7 @@ def extract_phone_numbers(text: str) -> List[str]:
                 
             matches.append(num)
     
-    return normalize_phone_numbers(list(set(matches)))
+    return normalize_phone_numbers(_deduplicate(matches))
 
 
 def extract_fake_credentials(text: str) -> List[str]:
@@ -274,7 +270,7 @@ def extract_fake_credentials(text: str) -> List[str]:
     matches = re.findall(PATTERNS["fake_credential"], text, re.IGNORECASE)
     # Also look for patterns like "Emp123sumit"
     additional = re.findall(r'\b[Ee]mp\d*[a-zA-Z]*\d*\b', text)
-    return list(set(m.strip() for m in matches + additional if m.strip()))
+    return _deduplicate([m.strip() for m in matches + additional if m.strip()])
 
 
 def extract_urls(text: str) -> List[str]:
@@ -290,11 +286,11 @@ def extract_urls(text: str) -> List[str]:
     whatsapp = re.findall(PATTERNS["whatsapp"], text)
     # Clean trailing punctuation from URLs
     cleaned = []
-    for url in list(set(urls + whatsapp)):
+    for url in _deduplicate(urls + whatsapp):
         url = url.rstrip('.,;:!?)')
         if url:
             cleaned.append(url)
-    return list(set(cleaned))
+    return _deduplicate(cleaned)
 
 
 def extract_emails(text: str) -> List[str]:
@@ -336,7 +332,7 @@ def extract_emails(text: str) -> List[str]:
             if "." not in domain and len(domain) >= 2:
                 emails.append(lower_m)
     
-    return list(set(emails))
+    return _deduplicate(emails)
 
 
 def extract_keywords(text: str) -> List[str]:
@@ -365,7 +361,7 @@ def normalize_keywords(items: List[str]) -> List[str]:
         candidate = re.sub(r'\s+', ' ', str(item).strip().lower())
         if candidate in keyword_set:
             normalized.append(candidate)
-    return list(set(normalized))
+    return _deduplicate(normalized)
 
 
 def extract_all_intelligence(text: str) -> Dict[str, Any]:
@@ -406,7 +402,7 @@ def merge_intelligence(existing: Dict[str, Any], new: Dict[str, Any]) -> Dict[st
     for key in ["upi_ids", "bank_accounts", "emails", "ifsc_codes", "phone_numbers", "phishing_links", "suspicious_keywords", "fake_credentials"]:
         existing_list = existing.get(key, [])
         new_list = new.get(key, [])
-        merged[key] = list(set(existing_list + new_list))
+        merged[key] = _deduplicate(existing_list + new_list)
     merged["upi_ids"] = normalize_upi_ids(merged.get("upi_ids", []), allow_unknown=True)
     merged["bank_accounts"] = normalize_bank_accounts(merged.get("bank_accounts", []))
     merged["phone_numbers"] = normalize_phone_numbers(merged.get("phone_numbers", []))

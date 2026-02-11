@@ -170,13 +170,24 @@ def honey_pot_chat():
         # 3. Get or create consistent persona
         persona = get_or_create_persona(session_id)
         
-        # 4. Extract intelligence from scammer's CURRENT message only (regex-based)
-        # NOTE: We do NOT re-extract from conversationHistory because:
-        #   (a) previous messages were already processed in prior API calls
-        #   (b) history contains our agent's own responses which include fake
-        #       persona bank accounts, UPIs, phones — extracting from those
-        #       contaminates the scammer intelligence with false positives
+        # 4. Extract intelligence from scammer's CURRENT message (regex-based)
         regex_intel = extract_all_intelligence(incoming_msg)
+        
+        # Also extract from SCAMMER messages in conversation history
+        # to accumulate keywords and structured intel across turns.
+        # We skip agent messages to avoid contaminating intel with persona's
+        # fake bank accounts, UPIs, and phone numbers.
+        for i, msg in enumerate(conversation_history):
+            if not isinstance(msg, dict) or not msg.get("text"):
+                continue
+            # Determine if this is a scammer message:
+            # - If 'sender' field exists, use it directly
+            # - Otherwise, use alternating pattern (0=scammer, 1=agent, 2=scammer...)
+            sender = msg.get("sender", "")
+            is_scammer_msg = (sender == "scammer") if sender else (i % 2 == 0)
+            if is_scammer_msg:
+                hist_intel = extract_all_intelligence(str(msg.get("text", "")))
+                regex_intel = merge_intelligence(regex_intel, hist_intel)
         
         # 5. Generate LLM response with context awareness
         system_prompt = get_system_prompt(persona)

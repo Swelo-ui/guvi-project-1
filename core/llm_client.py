@@ -384,18 +384,12 @@ def call_with_fallback(
 
 
 def clean_json_string(json_str: str) -> str:
-    """
-    Clean up JSON string to handle common LLM errors.
-    - Remove markdown code blocks
-    - Remove text before/after JSON
-    - Fix trailing commas
-    - Fix single quotes to double quotes (cautiously)
-    """
-    # 1. Remove markdown code blocks
-    if "```" in json_str:
-        json_str = re.sub(r'```json\s*|\s*```', '', json_str)
-        # Handle generic code blocks
-        json_str = re.sub(r'```\s*|\s*```', '', json_str)
+    """Clean LLM output to extract a valid JSON string."""
+    if not json_str:
+        return ""
+    
+    # 1. Remove markdown code blocks if present
+    json_str = re.sub(r'```json\s*|\s*```', '', json_str)
     
     # 2. Extract content between first { and last }
     start = json_str.find('{')
@@ -408,26 +402,27 @@ def clean_json_string(json_str: str) -> str:
         return json_str
 
     # 3. Fix trailing commas (common error)
-    # Replaces ", }" with "}" and ", ]" with "]"
     json_str = re.sub(r',\s*}', '}', json_str)
     json_str = re.sub(r',\s*]', ']', json_str)
     
     # 4. Attempt to fix single quotes to double quotes for keys/values
-    # This is risky but matches many LLM python-style dict outputs
-    # Match 'key': or 'value', avoiding 's (like it's)
-    # A simple but useful fix for {'key': 'value'} style
     if "'" in json_str and '"' not in json_str:
+        # Simple fix for {'key': 'value'} style
         json_str = json_str.replace("'", '"')
-        # Revert changes for 's or I'm (basic heuristic)
-        json_str = json_str.replace('I"m', "I'm").replace('it"s', "it's")
+        # Revert changes for 's or I"m
+        json_str = json_str.replace('I"m', "I'm").replace('it"s', "it's").replace('don"t', "don't")
 
-    # 5. Fix Python constants to JSON constants
-    # Use regex to only replace True/False/None that appear as JSON values
-    # (after a colon), not when they occur inside quoted string values
-    if "True" in json_str or "False" in json_str or "None" in json_str:
-        json_str = re.sub(r':\s*\bTrue\b', ': true', json_str)
-        json_str = re.sub(r':\s*\bFalse\b', ': false', json_str)
-        json_str = re.sub(r':\s*\bNone\b', ': null', json_str)
+    # 5. Fix Python constants to JSON constants (including in lists)
+    json_str = re.sub(r':\s*\bTrue\b', ': true', json_str)
+    json_str = re.sub(r':\s*\bFalse\b', ': false', json_str)
+    json_str = re.sub(r':\s*\bNone\b', ': null', json_str)
+    # Also handle in lists like [True, False]
+    json_str = re.sub(r'\[\s*\bTrue\b', '[true', json_str)
+    json_str = re.sub(r'\[\s*\bFalse\b', '[false', json_str)
+    json_str = re.sub(r'\[\s*\bNone\b', '[null', json_str)
+    json_str = re.sub(r',\s*\bTrue\b', ', true', json_str)
+    json_str = re.sub(r',\s*\bFalse\b', ', false', json_str)
+    json_str = re.sub(r',\s*\bNone\b', ', null', json_str)
 
     return json_str
 
@@ -446,14 +441,25 @@ def trim_response_text(text: str, max_chars: int = 320, max_sentences: int = 2) 
     if not text:
         return text
     cleaned = text.strip()
-    cleaned = re.sub(r'^(i understand|to verify|please|i can)\b', 'Arre haan ji', cleaned, flags=re.IGNORECASE)
+    
+    # Replace common AI-isms with persona-friendly starts
+    cleaned = re.sub(r'^(i understand|to verify|please|i can|okay|sure)\b', 'Arre haan ji', cleaned, flags=re.IGNORECASE)
+    
     sentences = re.split(r'(?<=[.!?])\s+', cleaned)
     if len(sentences) > max_sentences:
         cleaned = " ".join(sentences[:max_sentences]).strip()
+        
     if len(cleaned) > max_chars:
-        cleaned = cleaned[:max_chars].rstrip()
+        # Avoid cutting in the middle of a word
+        truncated = cleaned[:max_chars]
+        if ' ' in truncated:
+            cleaned = truncated.rsplit(' ', 1)[0].rstrip()
+        else:
+            cleaned = truncated.rstrip()
+            
         if cleaned and cleaned[-1] not in ".!?":
             cleaned += "..."
+            
     return cleaned
 
 
@@ -463,14 +469,30 @@ def get_prefix_key(text: str, word_count: int = 8) -> str:
     return " ".join(words[:word_count])
 
 
+def get_suffix_key(text: str, word_count: int = 8) -> str:
+    """Get the last N words of a response for suffix-level repetition check."""
+    cleaned = re.sub(r'[^a-zA-Z0-9\s]+', ' ', text.lower())
+    words = cleaned.split()
+    return " ".join(words[-word_count:]) if len(words) >= word_count else " ".join(words)
+
+
 def is_repetitive_response(response: str, conversation_history: List[Dict[str, str]], session_id: str) -> bool:
     recent_assistant = [
         msg.get("text", "")
         for msg in conversation_history
         if msg.get("sender") == "agent"
-    ][-2:]
+    ][-3:]  # Check last 3 agent replies (was 2)
     response_prefix = get_prefix_key(response)
+    response_suffix = get_suffix_key(response)
     if any(response_prefix and response_prefix == get_prefix_key(prev) for prev in recent_assistant):
+        return True
+    # NEW: Also check if the SUFFIX (last 8 words) matches any recent reply
+    # This catches cases like "Aapka poora naam kya hai?" appended to every response
+    suffix_match_count = sum(
+        1 for prev in recent_assistant
+        if response_suffix and response_suffix == get_suffix_key(prev)
+    )
+    if suffix_match_count >= 2:  # Same ending in 2+ of last 3 replies = repetitive
         return True
     if response in get_used_responses(session_id):
         return True
@@ -538,11 +560,29 @@ def sanitize_redundant_questions(
             "employee_id": "Aapka employee ID kya hai?",
             "name": "Aapka poora naam kya hai?"
         }
+        # Track which extraction prompts have been used recently to avoid repetition
+        used_prompts = get_used_responses(session_id)
         add_prompt = None
         for key in prompt_order:
             if not memory_hint.get(key):
-                add_prompt = prompts.get(key)
-                break
+                candidate = prompts.get(key, "")
+                # Skip if this exact prompt was already used recently
+                if candidate.lower() not in {p.lower() for p in used_prompts}:
+                    add_prompt = candidate
+                    break
+        # If all prompts were used, pick a general engagement question
+        if add_prompt is None:
+            general_prompts = [
+                "Aapka supervisor ka naam kya hai?",
+                "Aap kab se is bank mein kaam kar rahe ho?",
+                "Aapka reference number kya hai?",
+                "Mujhe confirmation letter bhej dijiye.",
+                "Main apne bete ko bhi bula leta hoon, ek minute.",
+            ]
+            for gp in general_prompts:
+                if gp.lower() not in {p.lower() for p in used_prompts}:
+                    add_prompt = gp
+                    break
         if not cleaned:
             cleaned = get_contextual_fallback("", session_id, conversation_history)
         if add_prompt and add_prompt.lower() not in cleaned.lower():

@@ -81,7 +81,7 @@ def call_openrouter(
             OPENROUTER_BASE_URL,
             headers=headers,
             json=payload,
-            timeout=12
+            timeout=18
         )
         
         if response.status_code == 200:

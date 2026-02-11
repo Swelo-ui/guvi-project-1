@@ -768,7 +768,18 @@ def analyze_conversation(
     """
     session = get_session_data(session_id)
     
-    # STEP 1: Extract intel from ALL scammer messages (build full memory)
+    # STEP 1: Reset mutable counters before full re-scan to prevent inflation.
+    # Without this, re-processing history on every call would keep incrementing
+    # times_asked_otp / times_asked_account and duplicating links_shared / apps_mentioned.
+    memory = session["scammer_memory"]
+    memory["times_asked_otp"] = 0
+    memory["times_asked_account"] = 0
+    memory["urgency_level"] = 0
+    memory["links_shared"] = []
+    memory["apps_mentioned"] = []
+    session["scammer_getting_frustrated"] = False
+    
+    # Now re-scan ALL scammer messages (build full memory from scratch)
     for msg in conversation_history:
         if msg.get("sender") == "scammer":
             extract_scammer_intel(msg.get("text", ""), session)

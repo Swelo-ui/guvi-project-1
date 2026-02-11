@@ -71,7 +71,21 @@ start_keep_warm()
 
 # API Key for authentication
 API_KEY_SECRET = os.getenv("HONEYPOT_API_KEY", "sk_ironmask_hackathon_2026")
-SENT_CALLBACKS = set()
+SENT_CALLBACKS: dict = {}  # session_id -> count of intel categories reported
+
+
+def count_intel_categories(intel: dict) -> int:
+    """Count how many intel categories have at least one entry.
+    Used to detect when new intel categories are discovered for callback re-sends.
+    """
+    count = 0
+    for key in ["upi_ids", "bank_accounts", "ifsc_codes", "phishing_links", "phone_numbers", "emails"]:
+        if intel.get(key):
+            count += 1
+    # Keywords count only if 3+ (they're less actionable individually)
+    if len(intel.get("suspicious_keywords", [])) >= 3:
+        count += 1
+    return count
 
 
 # --- HELPER FUNCTIONS ---
@@ -156,14 +170,13 @@ def honey_pot_chat():
         # 3. Get or create consistent persona
         persona = get_or_create_persona(session_id)
         
-        # 4. Extract intelligence from scammer's message (regex-based)
+        # 4. Extract intelligence from scammer's CURRENT message only (regex-based)
+        # NOTE: We do NOT re-extract from conversationHistory because:
+        #   (a) previous messages were already processed in prior API calls
+        #   (b) history contains our agent's own responses which include fake
+        #       persona bank accounts, UPIs, phones — extracting from those
+        #       contaminates the scammer intelligence with false positives
         regex_intel = extract_all_intelligence(incoming_msg)
-        
-        # Also extract from ALL conversation history messages (not just scammer)
-        for msg in conversation_history:
-            if isinstance(msg, dict) and msg.get("text"):
-                hist_intel = extract_all_intelligence(str(msg.get("text", "")))
-                regex_intel = merge_intelligence(regex_intel, hist_intel)
         
         # 5. Generate LLM response with context awareness
         system_prompt = get_system_prompt(persona)
@@ -220,8 +233,12 @@ def honey_pot_chat():
         should_send_callback = is_complete or has_actionable_intel(combined_intel) or (
             scam_detected and len(combined_intel.get("suspicious_keywords", [])) >= 3
         )
-        callback_already_sent = session_id in SENT_CALLBACKS
-        if should_send_callback and not callback_already_sent:
+        # Count current intel categories for re-send detection
+        current_intel_count = count_intel_categories(combined_intel)
+        previous_intel_count = SENT_CALLBACKS.get(session_id, 0)
+        # Allow re-send if new intel categories discovered since last callback
+        has_new_categories = current_intel_count > previous_intel_count
+        if should_send_callback and (session_id not in SENT_CALLBACKS or has_new_categories):
             callback_payload = build_callback_payload(
                 session_id=session_id,
                 scam_detected=scam_detected,
@@ -232,7 +249,7 @@ def honey_pot_chat():
             send_callback_async(callback_payload)
             run_async(save_intelligence, session_id, combined_intel, scam_detected, agent_notes)
             run_async(mark_callback_sent, session_id)
-            SENT_CALLBACKS.add(session_id)
+            SENT_CALLBACKS[session_id] = current_intel_count
             logger.info(f"🎯 Intelligence extracted! UPIs: {combined_intel.get('upi_ids')}, Banks: {combined_intel.get('bank_accounts')}")
         
         # 10. Build response
@@ -269,8 +286,10 @@ def honey_pot_chat():
         # Graceful fallback - never crash, always return GUVI-expected JSON format
         # Try to extract intel from the raw message even in error case
         fallback_intel = {}
+        fallback_session_id = "error_fallback"
         try:
             raw_data = request.get_json(silent=True) or {}
+            fallback_session_id = raw_data.get("sessionId", fallback_session_id)
             msg_text = ""
             msg_obj = raw_data.get("message", {})
             if isinstance(msg_obj, dict):
@@ -303,7 +322,7 @@ def honey_pot_chat():
                 "suspiciousKeywords": fallback_intel.get("suspicious_keywords", [])
             },
             "agentNotes": "Error occurred, using fallback response with regex extraction",
-            "reply": get_random_fallback()
+            "reply": get_random_fallback(fallback_session_id)
         }), 200
 
 
@@ -420,7 +439,10 @@ def whatsapp_webhook():
         
         # GUVI callback
         should_send = has_actionable_intel(combined_intel)
-        if should_send and session_id not in SENT_CALLBACKS:
+        current_intel_count = count_intel_categories(combined_intel)
+        previous_intel_count = SENT_CALLBACKS.get(session_id, 0)
+        has_new_categories = current_intel_count > previous_intel_count
+        if should_send and (session_id not in SENT_CALLBACKS or has_new_categories):
             callback_payload = build_callback_payload(
                 session_id=session_id,
                 scam_detected=scam_detected,
@@ -431,7 +453,7 @@ def whatsapp_webhook():
             send_callback_async(callback_payload)
             run_async(save_intelligence, session_id, combined_intel, scam_detected, agent_notes)
             run_async(mark_callback_sent, session_id)
-            SENT_CALLBACKS.add(session_id)
+            SENT_CALLBACKS[session_id] = current_intel_count
             logger.info(f"🎯 WhatsApp Intel: UPIs={combined_intel.get('upi_ids')}")
         
         # Send reply to WhatsApp

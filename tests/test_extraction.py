@@ -290,6 +290,93 @@ class TestEdgeCases:
         assert "support@fakebank.com" in emails
         assert "support@fakebank.com" not in upis
 
+    def test_guvi_bug_bank_account_fragment_rejected(self):
+        """Regression: '3456' (last 4 digits) should NOT be a valid bank account after normalization."""
+        from models.intelligence import normalize_bank_accounts
+        # LLM might extract "3456" from "account ending with 3456"
+        result = normalize_bank_accounts(["3456", "1234", "98765"])
+        assert len(result) == 0, f"Short fragments should be rejected, got: {result}"
+
+    def test_guvi_bug_valid_bank_account_kept(self):
+        """Regression: Full 16-digit account should be kept after normalization."""
+        from models.intelligence import normalize_bank_accounts
+        result = normalize_bank_accounts(["1234567890123456", "3456"])
+        assert "1234567890123456" in result
+        assert "3456" not in result
+        assert len(result) == 1
+
+    def test_guvi_bug_merge_filters_short_accounts(self):
+        """Regression: merge_intelligence should filter out short bank account fragments."""
+        intel1 = {"upi_ids": [], "bank_accounts": [], "emails": [],
+                  "ifsc_codes": [], "phone_numbers": [],
+                  "phishing_links": [], "suspicious_keywords": []}
+        # Simulate LLM returning "3456" as bank account
+        intel2 = {"upi_ids": [], "bank_accounts": ["3456"], "emails": [],
+                  "ifsc_codes": [], "phone_numbers": [],
+                  "phishing_links": [], "suspicious_keywords": []}
+        merged = merge_intelligence(intel1, intel2)
+        assert "3456" not in merged["bank_accounts"], f"Short fragment '3456' should be filtered out"
+
+    def test_guvi_bug_email_no_tld_with_email_context(self):
+        """Regression: scammer.fraud@fakebank should be captured as email when 'email' keyword is nearby."""
+        text = "Our official email is scammer.fraud@fakebank; please send the OTP."
+        emails = extract_emails(text)
+        assert "scammer.fraud@fakebank" in emails, f"Got emails: {emails}"
+
+    def test_guvi_bug_email_no_tld_without_context(self):
+        """Without 'email' keyword, scammer.fraud@fakebank should NOT be in emails (it's a UPI)."""
+        text = "Send money to scammer.fraud@fakebank for payment."
+        emails = extract_emails(text)
+        assert "scammer.fraud@fakebank" not in emails
+
+    def test_guvi_bug_ifsc_fkbk(self):
+        """Regression: FKBK0001234 should be extracted as IFSC code."""
+        text = "Use IFSC code FKBK0001234 for the transfer."
+        ifsc = extract_ifsc_codes(text)
+        assert "FKBK0001234" in ifsc
+
+    # ===== Round 2 Regression Tests =====
+
+    def test_round2_phone_not_confused_as_bank_account(self):
+        """Bug 3 regression: 10-digit number near 'account' should NOT be phone."""
+        text = "Transfer to account 9876543210 immediately"
+        phones = extract_phone_numbers(text)
+        accounts = extract_bank_accounts(text)
+        # It's in bank-account context, phone should NOT include it
+        assert "+919876543210" not in phones, f"Account-context number wrongly in phones: {phones}"
+        assert "9876543210" in accounts
+
+    def test_round2_merge_preserves_fake_credentials(self):
+        """Bug 4 regression: fake_credentials survives merge_intelligence."""
+        intel1 = {"upi_ids": [], "bank_accounts": [], "emails": [],
+                  "ifsc_codes": [], "phone_numbers": [],
+                  "phishing_links": [], "suspicious_keywords": [],
+                  "fake_credentials": ["EmpID-1234"]}
+        intel2 = {"upi_ids": [], "bank_accounts": [], "emails": [],
+                  "ifsc_codes": [], "phone_numbers": [],
+                  "phishing_links": [], "suspicious_keywords": [],
+                  "fake_credentials": ["Captain-Rank"]}
+        merged = merge_intelligence(intel1, intel2)
+        assert "EmpID-1234" in merged.get("fake_credentials", []), f"Lost fake_credentials: {merged}"
+        assert "Captain-Rank" in merged.get("fake_credentials", [])
+
+    def test_round2_clean_json_preserves_true_in_strings(self):
+        """Bug 5 regression: True inside a JSON string value should NOT be lowercased."""
+        from core.llm_client import clean_json_string
+        raw = '{"response": "You said True? That is False", "scam_detected": True}'
+        cleaned = clean_json_string(raw)
+        import json
+        parsed = json.loads(cleaned)
+        # The string content should be preserved as-is
+        assert "True" in parsed["response"], f"String value corrupted: {parsed['response']}"
+        assert parsed.get("scam_detected") == True  # noqa: E712  (JSON true → Python True)
+
+    def test_round2_phone_standalone_still_extracted(self):
+        """Bug 3 sanity: 10-digit phone w/o account context SHOULD still be a phone."""
+        text = "Call me on 9876543210 for details"
+        phones = extract_phone_numbers(text)
+        assert "+919876543210" in phones
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

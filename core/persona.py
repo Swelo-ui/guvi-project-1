@@ -23,38 +23,40 @@ def generate_persona(session_id: str) -> Dict[str, Any]:
     Returns:
         Complete persona dictionary
     """
-    # Seed random with session_id hash for consistency
+    # Use a LOCAL Random instance so we don't mutate the global random state.
+    # Global random.seed() is not thread-safe — it would affect all concurrent
+    # Flask request threads during persona generation.
     seed = int(hashlib.md5(session_id.encode()).hexdigest()[:8], 16)
-    random.seed(seed)
+    rng = random.Random(seed)
     
     data = get_indian_data()
     
     # Basic identity
-    first_name = random.choice(data['female_first_names'])
-    surname = random.choice(data['surnames'])
+    first_name = rng.choice(data['female_first_names'])
+    surname = rng.choice(data['surnames'])
     full_name = f"{first_name} {surname}"
     
-    age = random.randint(58, 78)
-    city_data = random.choice(data['cities'])
-    profession = random.choice(data['professions'])
+    age = rng.randint(58, 78)
+    city_data = rng.choice(data['cities'])
+    profession = rng.choice(data['professions'])
     
     # Financial identity
     financial = generate_complete_financial_identity(first_name)
     
     # Personality
-    speech_pattern = random.choice(data['speech_patterns'])
-    tech_level = random.choice(data['tech_levels'])
-    family = random.choice(data['family_patterns'])
+    speech_pattern = rng.choice(data['speech_patterns'])
+    tech_level = rng.choice(data['tech_levels'])
+    family = rng.choice(data['family_patterns'])
     
     # Husband status (for elderly persona)
-    husband_status = random.choice([
-        f"Late Shri {random.choice(data['male_first_names'])} {surname} (passed in {random.randint(2015, 2023)})",
-        f"Shri {random.choice(data['male_first_names'])} {surname} (retired, has health issues)",
-        f"Shri {random.choice(data['male_first_names'])} {surname} (retired Railway employee)"
+    husband_status = rng.choice([
+        f"Late Shri {rng.choice(data['male_first_names'])} {surname} (passed in {rng.randint(2015, 2023)})",
+        f"Shri {rng.choice(data['male_first_names'])} {surname} (retired, has health issues)",
+        f"Shri {rng.choice(data['male_first_names'])} {surname} (retired Railway employee)"
     ])
     
     # Monthly income/pension
-    pension = random.choice([12000, 15000, 18000, 21000, 25000])
+    pension = rng.choice([12000, 15000, 18000, 21000, 25000])
     
     persona = {
         # Identity
@@ -67,7 +69,7 @@ def generate_persona(session_id: str) -> Dict[str, Any]:
         # Location
         'city': city_data['name'],
         'state': city_data['state'],
-        'address': f"{random.randint(10, 500)}, {random.choice(['Gandhi Nagar', 'Nehru Colony', 'Shastri Nagar', 'Ram Nagar', 'Civil Lines'])}, {city_data['name']}",
+        'address': f"{rng.randint(10, 500)}, {rng.choice(['Gandhi Nagar', 'Nehru Colony', 'Shastri Nagar', 'Ram Nagar', 'Civil Lines'])}, {city_data['name']}",
         
         # Profession
         'profession': profession,
@@ -101,9 +103,6 @@ def generate_persona(session_id: str) -> Dict[str, Any]:
             "Anyone who knows her name"
         ]
     }
-    
-    # Reset random seed to avoid affecting other code
-    random.seed()
     
     return persona
 

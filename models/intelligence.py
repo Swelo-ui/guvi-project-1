@@ -101,9 +101,6 @@ def normalize_upi_ids(items: List[str], allow_unknown: bool = False) -> List[str
         # Unknown handle without dot - accept if context allows OR always allow
         # (GUVI tests use handles like @fakeupi, @fakebank)
         if allow_unknown or (not "." in handle and len(handle) >= 2):
-            # Final check: ensure handle doesn't look like a domain (ends with TLD)
-            if any(handle.lower().endswith(tld) for tld in ['.com', '.in', '.net', '.org', '.co.in', '.gov', '.edu']):
-                continue
             normalized.append(f"{user}@{handle}")
     return list(set(normalized))
 
@@ -196,13 +193,80 @@ def normalize_phone_numbers(items: List[str]) -> List[str]:
     return list(set(normalized))
 
 
+def normalize_bank_accounts(items: list) -> list:
+    """Validate and normalize bank account numbers.
+    Filters out short fragments (< 10 digits) that LLM may incorrectly extract.
+    E.g., 'account ending with 3456' → '3456' is NOT a valid bank account.
+    """
+    valid = []
+    for item in items:
+        if not item:
+            continue
+        clean = re.sub(r'[^\d]', '', str(item))
+        # Bank accounts must be at least 10 digits
+        if len(clean) >= 10:
+            valid.append(clean)
+    return list(set(valid))
+
+
 def extract_phone_numbers(text: str) -> List[str]:
-    """Extract phone numbers - enhanced to catch more formats."""
-    matches = re.findall(PATTERNS["phone"], text)
-    # Also look for standalone 10-digit sequences
-    additional = re.findall(r'\b(\d{10})\b', text)
-    all_matches = list(set(matches + additional))
-    return normalize_phone_numbers(all_matches)
+    """Extract phone numbers - enhanced to catch more formats.
+    Skips 10-digit numbers in bank-account context to avoid cross-contamination.
+    """
+    matches = []
+    
+    # Positive indicators that strongly suggest a number is a phone number
+    # If these are present, they override the "account" context exclusion
+    phone_indicators = ["phone", "call", "mob", "mobile", "whatsapp", "contact", "sms", "text"]
+    
+    # Primary phone pattern (captures +91 prefixed and 6-9 starting numbers)
+    for m in re.finditer(PATTERNS["phone"], text):
+        raw = m.group()
+        # If it has explicit phone formatting (+ prefix), accept it immediately
+        # phone numbers with + are never bank accounts
+        if raw.strip().startswith('+'):
+            matches.append(raw)
+            continue
+            
+        # Strip country-code prefix to get the core 10-digit number
+        core = re.sub(r'[^\d]', '', raw)
+        if core.startswith('91') and len(core) == 12:
+            core = core[2:]
+            
+        # If it's a bare 10-digit number, check for bank-account context
+        # (Only filter if it DOESN'T look like a formatted phone number)
+        if len(core) == 10:
+            # Check if it has phone-like separators (dashes/spaces) - if so, it's likely a phone
+            has_separators = '-' in raw or ' ' in raw
+            
+            # Check for positive phone indicators immediately preceding the number
+            has_phone_indicator = _has_context(text, m.start(), phone_indicators, window=25)
+            
+            # If it's a bare block of digits closely associated with account keywords, skip it
+            # UNLESS it has a strong phone indicator
+            if not has_separators and not has_phone_indicator:
+                if _has_context(text, m.start(), ACCOUNT_CONTEXT_KEYWORDS, window=50):
+                    continue  # Skip — likely a bank account
+        
+        matches.append(raw)
+    
+    # Secondary: catch standalone 10-digit sequences not already found
+    for m in re.finditer(r'\b(\d{10})\b', text):
+        num = m.group(1)
+        # Avoid duplicates (raw or core)
+        if num not in matches and num not in [re.sub(r'[^\d]', '', m) for m in matches]:
+            
+            # Check for positive phone indicators
+            has_phone_indicator = _has_context(text, m.start(), phone_indicators, window=25)
+            
+            # Standalone 10-digit number: strict context check
+            # If explicit phone context, keep it. If account context (and no phone context), skip it.
+            if not has_phone_indicator and _has_context(text, m.start(), ACCOUNT_CONTEXT_KEYWORDS, window=50):
+                continue
+                
+            matches.append(num)
+    
+    return normalize_phone_numbers(list(set(matches)))
 
 
 def extract_fake_credentials(text: str) -> List[str]:
@@ -234,10 +298,19 @@ def extract_urls(text: str) -> List[str]:
 
 
 def extract_emails(text: str) -> List[str]:
-    """Extract emails, filtering out UPI IDs."""
+    """Extract emails, filtering out UPI IDs.
+    Also captures addresses with non-TLD domains (like 'fakebank')
+    when the word 'email' appears nearby in the text.
+    """
     matches = re.findall(PATTERNS["email"], text, re.IGNORECASE)
-    # Filter out UPI IDs (handle is in UPI_HANDLES or has no dot in domain)
+    # Also check for @-patterns that the email regex misses (no TLD domains)
+    at_patterns = re.findall(PATTERNS["upi"], text, re.IGNORECASE)
+    
+    # Check if 'email' keyword appears in text
+    has_email_context = bool(re.search(r'\bemail\b', text.lower()))
+    
     emails = []
+    # Process standard email matches
     for m in matches:
         _, domain = m.lower().split("@", 1) if "@" in m else ("", "")
         domain_base = domain.split(".")[0] if "." in domain else domain
@@ -248,6 +321,21 @@ def extract_emails(text: str) -> List[str]:
         if "." not in domain:
             continue
         emails.append(m.lower())
+    
+    # If 'email' keyword is in text, also capture @-patterns with non-TLD domains
+    if has_email_context:
+        for m in at_patterns:
+            lower_m = m.lower()
+            if lower_m in emails:
+                continue
+            _, domain = lower_m.split("@", 1) if "@" in lower_m else ("", "")
+            domain_base = domain.split(".")[0] if "." in domain else domain
+            if domain_base in UPI_HANDLES:
+                continue
+            # Accept non-TLD domains when 'email' context is present
+            if "." not in domain and len(domain) >= 2:
+                emails.append(lower_m)
+    
     return list(set(emails))
 
 
@@ -315,11 +403,12 @@ def merge_intelligence(existing: Dict[str, Any], new: Dict[str, Any]) -> Dict[st
         Merged intelligence dict
     """
     merged = {}
-    for key in ["upi_ids", "bank_accounts", "emails", "ifsc_codes", "phone_numbers", "phishing_links", "suspicious_keywords"]:
+    for key in ["upi_ids", "bank_accounts", "emails", "ifsc_codes", "phone_numbers", "phishing_links", "suspicious_keywords", "fake_credentials"]:
         existing_list = existing.get(key, [])
         new_list = new.get(key, [])
         merged[key] = list(set(existing_list + new_list))
     merged["upi_ids"] = normalize_upi_ids(merged.get("upi_ids", []), allow_unknown=True)
+    merged["bank_accounts"] = normalize_bank_accounts(merged.get("bank_accounts", []))
     merged["phone_numbers"] = normalize_phone_numbers(merged.get("phone_numbers", []))
     merged["suspicious_keywords"] = normalize_keywords(merged.get("suspicious_keywords", []))
     return merged

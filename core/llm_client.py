@@ -5,6 +5,7 @@ Handles API calls to multiple LLM models with parallel execution and smart respo
 
 import os
 import json
+import re
 import logging
 import requests
 import time
@@ -421,11 +422,12 @@ def clean_json_string(json_str: str) -> str:
         json_str = json_str.replace('I"m', "I'm").replace('it"s', "it's")
 
     # 5. Fix Python constants to JSON constants
-    # Only do this if we are reasonable sure it's not part of a string
-    # Simple replace is risky but effective for "scam_detected": True
+    # Use regex to only replace True/False/None that appear as JSON values
+    # (after a colon), not when they occur inside quoted string values
     if "True" in json_str or "False" in json_str or "None" in json_str:
-        json_str = json_str.replace(": True", ": true").replace(": False", ": false").replace(": None", ": null")
-        json_str = json_str.replace(":True", ": true").replace(":False", ": false").replace(":None", ": null")
+        json_str = re.sub(r':\s*\bTrue\b', ': true', json_str)
+        json_str = re.sub(r':\s*\bFalse\b', ': false', json_str)
+        json_str = re.sub(r':\s*\bNone\b', ': null', json_str)
 
     return json_str
 
@@ -713,7 +715,14 @@ Now analyze the scammer's message and respond contextually:"""
             session_id
         )
         regex_intel = extract_all_intelligence(current_message)
-        parsed["intelligence"] = merge_intelligence(regex_intel, parsed.get("intelligence", {}))
+        # Validate LLM-extracted bank accounts: filter out <10 digit fragments
+        llm_intel = parsed.get("intelligence", {})
+        if "bank_accounts" in llm_intel and isinstance(llm_intel["bank_accounts"], list):
+            llm_intel["bank_accounts"] = [
+                acc for acc in llm_intel["bank_accounts"]
+                if len(re.sub(r'[^\d]', '', str(acc))) >= 10
+            ]
+        parsed["intelligence"] = merge_intelligence(regex_intel, llm_intel)
         if is_repetitive_response(parsed["response"], conversation_history, session_id):
             contextual_response = get_contextual_fallback(
                 current_message,

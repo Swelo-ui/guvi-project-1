@@ -15,7 +15,7 @@ import time
 import requests
 from datetime import datetime
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect
 from flasgger import Swagger
 from dotenv import load_dotenv
 
@@ -275,6 +275,10 @@ def get_or_create_persona(session_id: str) -> dict:
 
 
 # --- API ENDPOINTS ---
+
+@app.route('/api/honey-pot', methods=['GET'])
+def honey_pot_info():
+    return redirect("/apidocs/#/Honeypot/post_api_honey_pot")
 
 @app.route('/api/honey-pot', methods=['POST'])
 def honey_pot_chat():

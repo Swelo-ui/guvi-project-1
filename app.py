@@ -47,7 +47,7 @@ swagger_config = {
     "specs": [{
         "endpoint": "apispec",
         "route": "/apispec.json",
-        "rule_filter": lambda rule: True,
+        "rule_filter": lambda rule: whatsapp_configured or rule.endpoint not in {"whatsapp_verify", "whatsapp_webhook", "whatsapp_status"},
         "model_filter": lambda tag: True,
     }],
     "static_url_path": "/flasgger_static",
@@ -106,9 +106,8 @@ Send API key in header: `x-api-key: sk_ironmask_hackathon_2026`
     },
     "tags": [
         {"name": "Honeypot", "description": "Scam engagement and intelligence extraction"},
-        {"name": "WhatsApp", "description": "Webhook verification and message ingestion"},
         {"name": "System", "description": "Health checks and service info"},
-    ],
+    ] + ([{"name": "WhatsApp", "description": "Webhook verification and message ingestion"}] if whatsapp_configured else []),
     "definitions": {
         "HoneyPotRequest": {
             "type": "object",
@@ -627,6 +626,8 @@ def whatsapp_verify():
       403:
         description: Verification failed
     """
+    if not whatsapp_configured:
+        return jsonify({"status": "not_configured"}), 404
     mode = request.args.get('hub.mode', '')
     token = request.args.get('hub.verify_token', '')
     challenge = request.args.get('hub.challenge', '')
@@ -653,6 +654,8 @@ def whatsapp_webhook():
       200:
         description: Message received and processed
     """
+    if not whatsapp_configured:
+        return jsonify({"status": "not_configured"}), 404
     try:
         data = request.get_json()
         parsed = wa_handler.parse_webhook_message(data)
@@ -796,6 +799,8 @@ def whatsapp_status():
               type: string
               example: "/webhook"
     """
+    if not whatsapp_configured:
+        return jsonify({"status": "not_configured"}), 404
     return jsonify({
         "configured": whatsapp_configured,
         "webhook_url": "/webhook"
@@ -831,9 +836,6 @@ def root():
                 honeypot:
                   type: string
                   example: "/api/honey-pot"
-                whatsapp:
-                  type: string
-                  example: "/webhook"
                 health:
                   type: string
                   example: "/health"
@@ -841,18 +843,22 @@ def root():
               type: array
               items:
                 type: string
-              example: ["API", "WhatsApp"]
+              example: ["API"]
     """
+    endpoints = {
+        "honeypot": "/api/honey-pot",
+        "health": "/health"
+    }
+    channels = ["API"]
+    if whatsapp_configured:
+        endpoints["whatsapp"] = "/webhook"
+        channels.append("WhatsApp")
     return jsonify({
         "service": "Operation Iron-Mask: Agentic Honeypot",
         "version": "1.1.0",
         "description": "GUVI India AI Impact Buildathon - Problem Statement 2",
-        "endpoints": {
-            "honeypot": "/api/honey-pot",
-            "whatsapp": "/webhook",
-            "health": "/health"
-        },
-        "channels": ["API", "WhatsApp"]
+        "endpoints": endpoints,
+        "channels": channels
     }), 200
 
 

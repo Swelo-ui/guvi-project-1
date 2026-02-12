@@ -62,51 +62,31 @@ swagger_template = {
 # 🛡️ AI-Powered Counter-Intelligence Honeypot
 **India AI Impact Buildathon 2026 - Problem Statement 2**
 
-<div style="font-family: sans-serif; max-width: 650px;">
-    <p>This AI acts like an <strong>Elderly Indian Grandma</strong> to waste scammers' time and extract their bank details.</p>
-    
-    <div style="background-color: #ECE5DD; padding: 15px; border-radius: 10px; margin: 20px 0; border: 1px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-        <h3 style="margin: 0 0 10px 0; color: #075E54; font-size: 1.1em;">💬 Live Chat Simulation</h3>
-        
-        <!-- Scammer Message -->
-        <div style="display: flex; justify-content: flex-start; margin-bottom: 10px;">
-            <div style="background: white; padding: 10px; border-radius: 10px 10px 10px 0; max-width: 80%; box-shadow: 0 1px 1px rgba(0,0,0,0.1);">
-                <div style="font-size: 0.8em; color: #d00; font-weight: bold; margin-bottom: 3px;">👺 Scammer</div>
-                URGENT! Your SBI account is blocked. Send OTP now or police will come! 🚨
-            </div>
-        </div>
+This AI acts like an **Elderly Indian Grandma** to waste scammers' time and extract their bank details.
 
-        <!-- AI Response -->
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
-            <div style="background: #DCF8C6; padding: 10px; border-radius: 10px 10px 0 10px; max-width: 80%; box-shadow: 0 1px 1px rgba(0,0,0,0.1);">
-                <div style="font-size: 0.8em; color: #075E54; font-weight: bold; margin-bottom: 3px;">👵 AI Nani (Honeypot)</div>
-                Arre beta, police? 😰 My hands are shaking. I am old lady, please don't arrest me. Which OTP?
-            </div>
-        </div>
-        
-        <div style="text-align: center; color: #666; font-size: 0.85em; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ccc;">
-            <em>✨ The AI replies in < 2 seconds, stalls for 20+ turns, and gets the scammer's bank account!</em>
-        </div>
-    </div>
+## 💬 Live Chat Simulation
+**👺 Scammer:** URGENT! Your SBI account is blocked. Send OTP now or police will come! 🚨  
+**👵 AI Nani (Honeypot):** Arre beta, police? 😰 My hands are shaking. I am old lady, please don't arrest me. Which OTP?
 
-    <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-    
-    <h3>🚀 TRY IT YOURSELF (No Coding Needed!)</h3>
-    <ol>
-        <li>Click the <strong style="color: #49cc90;">POST /api/honey-pot</strong> button below.</li>
-        <li>Click <strong style="background: #eee; padding: 2px 6px; border-radius: 4px; border: 1px solid #ccc;">Try it out</strong>.</li>
-        <li>Copy & Paste this "Digital Arrest" logic:</li>
-    </ol>
-    <pre style="background: #282c34; color: #abb2bf; padding: 12px; border-radius: 6px; overflow-x: auto; font-family: monospace;">
+_✨ The AI replies in under 2 seconds, stalls for 20+ turns, and gets the scammer's bank account!_
+
+---
+
+## 🚀 Try It Yourself (No Coding Needed!)
+1. Click the **POST /api/honey-pot** button below.
+2. Click **Try it out**.
+3. Copy & paste this "Digital Arrest" logic:
+
+```json
 {
   "sessionId": "judge_demo_1",
   "message": {
     "text": "This is CBI. You are under digital arrest. Transfer money to verify."
   }
 }
-    </pre>
-    <li>Click <strong style="background: #49cc90; color: white; padding: 4px 10px; border-radius: 4px;">Execute</strong> and see the magic! ✨</li>
-</div>
+```
+
+4. Click **Execute** and see the magic! ✨
 """),
         "version": "1.1.0",
         "contact": {"name": "Operation Iron-Mask Team"},

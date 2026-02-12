@@ -100,7 +100,86 @@ This system detects financial scams, deploys realistic **Elderly Indian Personas
     "tags": [
         {"name": "Honeypot", "description": "Core scam engagement endpoint"},
         {"name": "System", "description": "Health checks & status"},
-    ]
+    ],
+    "definitions": {
+        "HoneyPotRequest": {
+            "type": "object",
+            "required": ["sessionId", "message"],
+            "properties": {
+                "sessionId": {
+                    "type": "string",
+                    "description": "Unique session identifier for conversation tracking",
+                    "example": "demo_session_001"
+                },
+                "message": {
+                    "type": "object",
+                    "required": ["text"],
+                    "properties": {
+                        "text": {
+                            "type": "string",
+                            "description": "The scammer's message text",
+                            "example": "URGENT: Your connection will be cut. Call me now."
+                        }
+                    }
+                },
+                "conversationHistory": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string"},
+                            "sender": {"type": "string", "enum": ["scammer", "agent"]}
+                        }
+                    },
+                    "description": "Previous messages for context"
+                }
+            }
+        },
+        "ExtractedIntelligence": {
+            "type": "object",
+            "properties": {
+                "bankAccounts": {"type": "array", "items": {"type": "string"}, "example": ["123456789012"]},
+                "upiIds": {"type": "array", "items": {"type": "string"}, "example": ["fraud@ybl"]},
+                "emails": {"type": "array", "items": {"type": "string"}, "example": ["scam@pnb.co.in"]},
+                "phoneNumbers": {"type": "array", "items": {"type": "string"}, "example": ["+919876543210"]},
+                "ifscCodes": {"type": "array", "items": {"type": "string"}, "example": ["SBIN0001234"]},
+                "suspiciousKeywords": {
+                    "type": "array", 
+                    "items": {"type": "string"}, 
+                    "example": ["urgent", "blocked", "verify"]
+                },
+                "fakeCredentials": {"type": "array", "items": {"type": "string"}, "example": ["EmpID: 98765"]},
+                "mentionedBanks": {"type": "array", "items": {"type": "string"}, "example": ["sbi", "pnb"]}
+            },
+            "description": "Structured data extracted from the conversation"
+        },
+        "EngagementMetrics": {
+            "type": "object",
+            "properties": {
+                "engagementDurationSeconds": {"type": "integer", "example": 120},
+                "totalMessagesExchanged": {"type": "integer", "example": 4}
+            }
+        },
+        "HoneyPotResponse": {
+            "type": "object",
+            "properties": {
+                "status": {"type": "string", "example": "success"},
+                "scamDetected": {"type": "boolean", "description": "True if scam intent identified", "example": true},
+                "reply": {
+                    "type": "string", 
+                    "description": "The AI persona's response", 
+                    "example": "Arre beta, I don't have OTP. Can I go to branch?"
+                },
+                "agentNotes": {
+                    "type": "string", 
+                    "description": "Internal reasoning of the AI agent", 
+                    "example": "feigning_ignorance | Extracted: keywords=3"
+                },
+                "extractedIntelligence": {"$ref": "#/definitions/ExtractedIntelligence"},
+                "engagementMetrics": {"$ref": "#/definitions/EngagementMetrics"}
+            }
+        }
+    }
 }
 
 swagger = Swagger(app, config=swagger_config, template=swagger_template)
@@ -217,125 +296,14 @@ def honey_pot_chat():
         name: body
         required: true
         schema:
-          type: object
-          required:
-            - sessionId
-            - message
-          properties:
-            sessionId:
-              type: string
-              description: Unique session identifier for conversation tracking
-              example: "test-session-001"
-            message:
-              type: object
-              required:
-                - text
-              properties:
-                text:
-                  type: string
-                  description: The scammer's message
-                  example: "URGENT: Your SBI account has been compromised. Share your OTP immediately to verify your identity."
-            conversationHistory:
-              type: array
-              description: Previous messages in the conversation
-              items:
-                type: object
-                properties:
-                  text:
-                    type: string
-                  sender:
-                    type: string
-                    enum: [scammer, agent]
-              example:
-                - text: "Your bank account is blocked!"
-                  sender: "scammer"
-                - text: "Arre baba, kaunsa account? Mera toh savings hai 30 saal se!"
-                  sender: "agent"
+          $ref: '#/definitions/HoneyPotRequest'
     responses:
       200:
-        description: Honeypot response with extracted intelligence
+        description: Successful Engagement Response
         schema:
-          type: object
-          properties:
-            status:
-              type: string
-              example: "success"
-            scamDetected:
-              type: boolean
-              example: true
-            engagementMetrics:
-              type: object
-              properties:
-                engagementDurationSeconds:
-                  type: integer
-                  example: 90
-                totalMessagesExchanged:
-                  type: integer
-                  example: 2
-            extractedIntelligence:
-              type: object
-              properties:
-                bankAccounts:
-                  type: array
-                  items:
-                    type: string
-                  example: []
-                upiIds:
-                  type: array
-                  items:
-                    type: string
-                  example: []
-                emails:
-                  type: array
-                  items:
-                    type: string
-                  example: []
-                phishingLinks:
-                  type: array
-                  items:
-                    type: string
-                  example: []
-                phoneNumbers:
-                  type: array
-                  items:
-                    type: string
-                  example: []
-                ifscCodes:
-                  type: array
-                  items:
-                    type: string
-                  example: []
-                suspiciousKeywords:
-                  type: array
-                  items:
-                    type: string
-                  example: ["urgent", "otp", "verify", "compromised", "blocked"]
-                fakeCredentials:
-                  type: array
-                  items:
-                    type: string
-                  example: []
-                aadhaarNumbers:
-                  type: array
-                  items:
-                    type: string
-                  example: []
-                panNumbers:
-                  type: array
-                  items:
-                    type: string
-                  example: []
-                mentionedBanks:
-                  type: array
-                  items:
-                    type: string
-                  example: ["sbi"]
-            agentNotes:
-              type: string
-              example: "feigning_ignorance | Extracted: keywords=5"
-            reply:
-              type: string
-              example: "Arre beta, OTP kya hota hai? Ek minute, mera chasma dhundh lu..."
+          $ref: '#/definitions/HoneyPotResponse'
+      400:
+        description: Invalid Input
       401:
         description: Unauthorized - Invalid API Key
     """

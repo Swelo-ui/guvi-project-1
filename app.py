@@ -15,6 +15,7 @@ import requests
 from datetime import datetime
 
 from flask import Flask, request, jsonify
+from flasgger import Swagger
 from dotenv import load_dotenv
 
 # Add project root to path for imports
@@ -38,6 +39,49 @@ load_dotenv()
 whatsapp_configured = wa_handler.is_whatsapp_configured()
 
 app = Flask(__name__)
+
+# --- SWAGGER CONFIGURATION ---
+swagger_config = {
+    "headers": [],
+    "specs": [{
+        "endpoint": "apispec",
+        "route": "/apispec.json",
+        "rule_filter": lambda rule: True,
+        "model_filter": lambda tag: True,
+    }],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/apidocs/"
+}
+
+swagger_template = {
+    "info": {
+        "title": "Operation Iron-Mask API",
+        "description": (
+            "AI-Powered Counter-Intelligence Honeypot for Scam Detection.\n\n"
+            "This system detects scams, deploys realistic elderly Indian personas, "
+            "engages scammers in believable conversations, and extracts actionable "
+            "intelligence (bank accounts, UPI IDs, IFSC codes, etc.).\n\n"
+            "**India AI Impact Buildathon 2026 - Problem Statement 2**"
+        ),
+        "version": "1.1.0",
+        "contact": {"name": "Operation Iron-Mask Team"},
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "x-api-key",
+            "description": "API Key for honeypot endpoint authentication"
+        }
+    },
+    "tags": [
+        {"name": "Honeypot", "description": "Core scam detection & engagement"},
+        {"name": "System", "description": "Health & status endpoints"},
+    ]
+}
+
+swagger = Swagger(app, config=swagger_config, template=swagger_template)
 
 # Logging
 logging.basicConfig(
@@ -132,8 +176,146 @@ def get_or_create_persona(session_id: str) -> dict:
 @app.route('/api/honey-pot', methods=['POST'])
 def honey_pot_chat():
     """
-    Main honeypot endpoint.
+    Main Honeypot Endpoint
     Receives scam messages and returns convincing elderly victim responses.
+    The AI deploys a realistic elderly Indian persona to stall the scammer and extract intelligence.
+    ---
+    tags:
+      - Honeypot
+    security:
+      - ApiKeyAuth: []
+    parameters:
+      - in: header
+        name: x-api-key
+        type: string
+        required: true
+        description: API authentication key
+        default: sk_ironmask_hackathon_2026
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - sessionId
+            - message
+          properties:
+            sessionId:
+              type: string
+              description: Unique session identifier for conversation tracking
+              example: "test-session-001"
+            message:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                  description: The scammer's message
+                  example: "URGENT: Your SBI account has been compromised. Share your OTP immediately to verify your identity."
+            conversationHistory:
+              type: array
+              description: Previous messages in the conversation
+              items:
+                type: object
+                properties:
+                  text:
+                    type: string
+                  sender:
+                    type: string
+                    enum: [scammer, agent]
+              example:
+                - text: "Your bank account is blocked!"
+                  sender: "scammer"
+                - text: "Arre baba, kaunsa account? Mera toh savings hai 30 saal se!"
+                  sender: "agent"
+    responses:
+      200:
+        description: Honeypot response with extracted intelligence
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "success"
+            scamDetected:
+              type: boolean
+              example: true
+            engagementMetrics:
+              type: object
+              properties:
+                engagementDurationSeconds:
+                  type: integer
+                  example: 90
+                totalMessagesExchanged:
+                  type: integer
+                  example: 2
+            extractedIntelligence:
+              type: object
+              properties:
+                bankAccounts:
+                  type: array
+                  items:
+                    type: string
+                  example: []
+                upiIds:
+                  type: array
+                  items:
+                    type: string
+                  example: []
+                emails:
+                  type: array
+                  items:
+                    type: string
+                  example: []
+                phishingLinks:
+                  type: array
+                  items:
+                    type: string
+                  example: []
+                phoneNumbers:
+                  type: array
+                  items:
+                    type: string
+                  example: []
+                ifscCodes:
+                  type: array
+                  items:
+                    type: string
+                  example: []
+                suspiciousKeywords:
+                  type: array
+                  items:
+                    type: string
+                  example: ["urgent", "otp", "verify", "compromised", "blocked"]
+                fakeCredentials:
+                  type: array
+                  items:
+                    type: string
+                  example: []
+                aadhaarNumbers:
+                  type: array
+                  items:
+                    type: string
+                  example: []
+                panNumbers:
+                  type: array
+                  items:
+                    type: string
+                  example: []
+                mentionedBanks:
+                  type: array
+                  items:
+                    type: string
+                  example: ["sbi"]
+            agentNotes:
+              type: string
+              example: "feigning_ignorance | Extracted: keywords=5"
+            reply:
+              type: string
+              example: "Arre beta, OTP kya hota hai? Ek minute, mera chasma dhundh lu..."
+      401:
+        description: Unauthorized - Invalid API Key
     """
     # 1. Authentication
     if not verify_api_key():
@@ -361,7 +543,31 @@ def honey_pot_chat():
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint for deployment platforms."""
+    """
+    Health Check
+    Returns service health status and configuration info.
+    ---
+    tags:
+      - System
+    responses:
+      200:
+        description: Service is healthy
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "healthy"
+            service:
+              type: string
+              example: "Operation Iron-Mask Honeypot"
+            timestamp:
+              type: string
+              example: "2026-02-12T03:30:00"
+            whatsapp_enabled:
+              type: boolean
+              example: true
+    """
     return jsonify({
         "status": "healthy",
         "service": "Operation Iron-Mask Honeypot",
@@ -509,7 +715,25 @@ def whatsapp_webhook():
 
 @app.route('/whatsapp/status', methods=['GET'])
 def whatsapp_status():
-    """Check WhatsApp integration status."""
+    """
+    WhatsApp Integration Status
+    Check if WhatsApp channel is configured and available.
+    ---
+    tags:
+      - System
+    responses:
+      200:
+        description: WhatsApp configuration status
+        schema:
+          type: object
+          properties:
+            configured:
+              type: boolean
+              example: true
+            webhook_url:
+              type: string
+              example: "/webhook"
+    """
     return jsonify({
         "configured": whatsapp_configured,
         "webhook_url": "/webhook"
@@ -518,7 +742,45 @@ def whatsapp_status():
 
 @app.route('/', methods=['GET'])
 def root():
-    """Root endpoint with service info."""
+    """
+    Service Info
+    Returns Operation Iron-Mask service information and available endpoints.
+    ---
+    tags:
+      - System
+    responses:
+      200:
+        description: Service information
+        schema:
+          type: object
+          properties:
+            service:
+              type: string
+              example: "Operation Iron-Mask: Agentic Honeypot"
+            version:
+              type: string
+              example: "1.1.0"
+            description:
+              type: string
+              example: "GUVI India AI Impact Buildathon - Problem Statement 2"
+            endpoints:
+              type: object
+              properties:
+                honeypot:
+                  type: string
+                  example: "/api/honey-pot"
+                whatsapp:
+                  type: string
+                  example: "/webhook"
+                health:
+                  type: string
+                  example: "/health"
+            channels:
+              type: array
+              items:
+                type: string
+              example: ["API", "WhatsApp"]
+    """
     return jsonify({
         "service": "Operation Iron-Mask: Agentic Honeypot",
         "version": "1.1.0",

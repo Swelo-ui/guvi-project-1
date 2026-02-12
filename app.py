@@ -56,14 +56,36 @@ swagger_config = {
 
 swagger_template = {
     "info": {
-        "title": "Operation Iron-Mask API",
-        "description": (
-            "AI-Powered Counter-Intelligence Honeypot for Scam Detection.\n\n"
-            "This system detects scams, deploys realistic elderly Indian personas, "
-            "engages scammers in believable conversations, and extracts actionable "
-            "intelligence (bank accounts, UPI IDs, IFSC codes, etc.).\n\n"
-            "**India AI Impact Buildathon 2026 - Problem Statement 2**"
-        ),
+        "title": "Operation Iron-Mask: AI Honeypot API",
+        "description": """
+# 🛡️ AI-Powered Counter-Intelligence Honeypot
+**India AI Impact Buildathon 2026 - Problem Statement 2**
+
+This system detects financial scams, deploys realistic **Elderly Indian Personas**, engages scammers in believable conversations, and extracts actionable intelligence (Bank Accounts, UPI IDs, etc.).
+
+---
+
+### 🚀 LIVE DEMO INSTRUCTIONS
+1.  **Select Endpoint**: Click on `POST /api/honey-pot` below.
+2.  **Try It Out**: Click the **Try it out** button.
+3.  **Paste Payload**: Use the example JSON below:
+    ```json
+    {
+      "sessionId": "live_demo_jury_01",
+      "message": {
+        "text": "URGENT: Your SBI account is compromised. Share OTP immediately or account will be blocked."
+      }
+    }
+    ```
+4.  **Execute**: Click **Execute** and watch the AI response!
+
+---
+
+### Key Features
+- **Scam Detection**: Identifies urgency, fear tactics, and keywords.
+- **Persona Generation**: Creates consistent elderly profiles (e.g., "Kamala Sharma, 68").
+- **Reverse Extraction**: Tricks scammers into revealing *their* bank details.
+""",
         "version": "1.1.0",
         "contact": {"name": "Operation Iron-Mask Team"},
     },
@@ -72,12 +94,12 @@ swagger_template = {
             "type": "apiKey",
             "in": "header",
             "name": "x-api-key",
-            "description": "API Key for honeypot endpoint authentication"
+            "description": "API Key (Default: sk_ironmask_hackathon_2026)"
         }
     },
     "tags": [
-        {"name": "Honeypot", "description": "Core scam detection & engagement"},
-        {"name": "System", "description": "Health & status endpoints"},
+        {"name": "Honeypot", "description": "Core scam engagement endpoint"},
+        {"name": "System", "description": "Health checks & status"},
     ]
 }
 

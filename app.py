@@ -59,23 +59,25 @@ swagger_template = {
     "info": {
         "title": "Operation Iron-Mask: AI Honeypot API",
         "description": textwrap.dedent("""
-# 🛡️ AI-Powered Counter-Intelligence Honeypot
-**India AI Impact Buildathon 2026 - Problem Statement 2**
+# 🛡️ Operation Iron-Mask: AI Honeypot
+**India AI Impact Buildathon 2026 — Problem Statement 2**
 
-This AI acts like an **Elderly Indian Grandma** to waste scammers' time and extract their bank details.
+This service acts like a **friendly elderly Indian grandma** to **stall scammers** and **extract actionable details** such as UPI IDs, phone numbers, IFSC codes, and phishing links.
 
-## 💬 Live Chat Simulation
-**👺 Scammer:** URGENT! Your SBI account is blocked. Send OTP now or police will come! 🚨  
-**👵 AI Nani (Honeypot):** Arre beta, police? 😰 My hands are shaking. I am old lady, please don't arrest me. Which OTP?
+## ✅ What This API Does
+- Detects scam intent from messages
+- Replies in a believable, human style
+- Extracts structured intelligence from the conversation
+- Works for API and WhatsApp webhook flows
 
-_✨ The AI replies in under 2 seconds, stalls for 20+ turns, and gets the scammer's bank account!_
+## 💬 Example Conversation
+**👺 Scammer:** URGENT! Your SBI account is blocked. Send OTP now or police will come!  
+**👵 AI Nani:** Arre beta, police? 😰 My hands are shaking. I am old lady, please don't arrest me. Which OTP?
 
----
-
-## 🚀 Try It Yourself (No Coding Needed!)
-1. Click the **POST /api/honey-pot** button below.
+## 🚀 Quick Start (No Coding Needed)
+1. Open **POST /api/honey-pot**.
 2. Click **Try it out**.
-3. Copy & paste this "Digital Arrest" logic:
+3. Paste this JSON:
 
 ```json
 {
@@ -86,7 +88,10 @@ _✨ The AI replies in under 2 seconds, stalls for 20+ turns, and gets the scamm
 }
 ```
 
-4. Click **Execute** and see the magic! ✨
+4. Click **Execute** and check the response.
+
+## 🔐 Auth
+Send API key in header: `x-api-key: sk_ironmask_hackathon_2026`
 """),
         "version": "1.1.0",
         "contact": {"name": "Operation Iron-Mask Team"},
@@ -100,8 +105,9 @@ _✨ The AI replies in under 2 seconds, stalls for 20+ turns, and gets the scamm
         }
     },
     "tags": [
-        {"name": "Honeypot", "description": "Core scam engagement endpoint"},
-        {"name": "System", "description": "Health checks & status"},
+        {"name": "Honeypot", "description": "Scam engagement and intelligence extraction"},
+        {"name": "WhatsApp", "description": "Webhook verification and message ingestion"},
+        {"name": "System", "description": "Health checks and service info"},
     ],
     "definitions": {
         "HoneyPotRequest": {
@@ -134,6 +140,10 @@ _✨ The AI replies in under 2 seconds, stalls for 20+ turns, and gets the scamm
                         }
                     },
                     "description": "Previous messages for context"
+                },
+                "metadata": {
+                    "type": "object",
+                    "description": "Optional metadata such as channel or locale"
                 }
             }
         },
@@ -143,6 +153,7 @@ _✨ The AI replies in under 2 seconds, stalls for 20+ turns, and gets the scamm
                 "bankAccounts": {"type": "array", "items": {"type": "string"}, "example": ["123456789012"]},
                 "upiIds": {"type": "array", "items": {"type": "string"}, "example": ["fraud@ybl"]},
                 "emails": {"type": "array", "items": {"type": "string"}, "example": ["scam@pnb.co.in"]},
+                "phishingLinks": {"type": "array", "items": {"type": "string"}, "example": ["http://fake-link.example/verify"]},
                 "phoneNumbers": {"type": "array", "items": {"type": "string"}, "example": ["+919876543210"]},
                 "ifscCodes": {"type": "array", "items": {"type": "string"}, "example": ["SBIN0001234"]},
                 "suspiciousKeywords": {
@@ -151,6 +162,8 @@ _✨ The AI replies in under 2 seconds, stalls for 20+ turns, and gets the scamm
                     "example": ["urgent", "blocked", "verify"]
                 },
                 "fakeCredentials": {"type": "array", "items": {"type": "string"}, "example": ["EmpID: 98765"]},
+                "aadhaarNumbers": {"type": "array", "items": {"type": "string"}, "example": ["1234 5678 9012"]},
+                "panNumbers": {"type": "array", "items": {"type": "string"}, "example": ["ABCDE1234F"]},
                 "mentionedBanks": {"type": "array", "items": {"type": "string"}, "example": ["sbi", "pnb"]}
             },
             "description": "Structured data extracted from the conversation"
@@ -278,6 +291,16 @@ def get_or_create_persona(session_id: str) -> dict:
 
 @app.route('/api/honey-pot', methods=['GET'])
 def honey_pot_info():
+    """
+    Honeypot Docs Redirect
+    Redirects browser requests to Swagger UI.
+    ---
+    tags:
+      - System
+    responses:
+      302:
+        description: Redirect to Swagger UI
+    """
     return redirect("/apidocs/#/Honeypot/post_api_honey_pot")
 
 @app.route('/api/honey-pot', methods=['POST'])
@@ -576,7 +599,34 @@ def health_check():
 
 @app.route('/webhook', methods=['GET'])
 def whatsapp_verify():
-    """WhatsApp webhook verification - Meta sends GET to verify URL."""
+    """
+    WhatsApp Webhook Verification
+    Meta sends a GET request to verify the webhook URL.
+    ---
+    tags:
+      - WhatsApp
+    parameters:
+      - in: query
+        name: hub.mode
+        type: string
+        required: true
+        description: Verification mode sent by Meta
+      - in: query
+        name: hub.verify_token
+        type: string
+        required: true
+        description: Verification token configured in Meta App
+      - in: query
+        name: hub.challenge
+        type: string
+        required: true
+        description: Challenge string to echo back
+    responses:
+      200:
+        description: Verification successful
+      403:
+        description: Verification failed
+    """
     mode = request.args.get('hub.mode', '')
     token = request.args.get('hub.verify_token', '')
     challenge = request.args.get('hub.challenge', '')
@@ -586,7 +636,23 @@ def whatsapp_verify():
 
 @app.route('/webhook', methods=['POST'])
 def whatsapp_webhook():
-    """WhatsApp message handler - receives and processes WhatsApp messages."""
+    """
+    WhatsApp Message Handler
+    Receives messages from Meta and processes them through the honeypot.
+    ---
+    tags:
+      - WhatsApp
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          description: Raw WhatsApp webhook payload from Meta
+    responses:
+      200:
+        description: Message received and processed
+    """
     try:
         data = request.get_json()
         parsed = wa_handler.parse_webhook_message(data)

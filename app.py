@@ -164,7 +164,7 @@ This system detects financial scams, deploys realistic **Elderly Indian Personas
             "type": "object",
             "properties": {
                 "status": {"type": "string", "example": "success"},
-                "scamDetected": {"type": "boolean", "description": "True if scam intent identified", "example": true},
+                "scamDetected": {"type": "boolean", "description": "True if scam intent identified", "example": True},
                 "reply": {
                     "type": "string", 
                     "description": "The AI persona's response", 

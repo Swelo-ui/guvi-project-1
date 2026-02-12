@@ -8,6 +8,7 @@ dynamic personas, and extracts actionable intelligence.
 
 import os
 import sys
+import textwrap
 import logging
 import threading
 import time
@@ -57,7 +58,7 @@ swagger_config = {
 swagger_template = {
     "info": {
         "title": "Operation Iron-Mask: AI Honeypot API",
-        "description": """
+        "description": textwrap.dedent("""
 # 🛡️ AI-Powered Counter-Intelligence Honeypot
 **India AI Impact Buildathon 2026 - Problem Statement 2**
 
@@ -106,7 +107,7 @@ swagger_template = {
     </pre>
     <li>Click <strong style="background: #49cc90; color: white; padding: 4px 10px; border-radius: 4px;">Execute</strong> and see the magic! ✨</li>
 </div>
-""",
+"""),
         "version": "1.1.0",
         "contact": {"name": "Operation Iron-Mask Team"},
     },

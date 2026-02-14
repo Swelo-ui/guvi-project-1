@@ -16,6 +16,7 @@
   <a href="#-architecture">Architecture</a> •
   <a href="#-quick-start">Quick Start</a> •
   <a href="#-api-documentation">API Docs</a> •
+  <a href="#-whatsapp-setup">WhatsApp Setup</a> •
   <a href="#-deployment">Deployment</a> •
   <a href="#-tech-stack">Tech Stack</a>
 </p>
@@ -50,13 +51,14 @@ India loses approximately **₹1.25 lakh crore annually** to cyber fraud, with e
 - **Consistent Identity** - Session-based seeding ensures the same persona is used throughout a conversation
 - **Rich Backstory** - Complete with family details, pension information, and personality traits
 
-### 🧠 LLM-Powered Intelligence
-- **Adaptive Conversation** - Uses AI to generate natural, contextually appropriate responses
-- **Strategic Stalling** - Employs tactics like confusion, technical difficulties, and family distractions
-- **Scam Type Detection** - Automatically identifies the type of fraud being attempted
+### 🧠 LLM-Powered Intelligence (OpenRouter)
+- **Multi-Model Reasoning** - Runs primary + backup models for safer, richer replies
+- **Adaptive Conversation** - Generates natural, context-aware responses
+- **Strategic Stalling** - Uses confusion, tech issues, and family tangents to waste scammer time
+- **Scam Type Detection** - Classifies fraud intent and tactics
 
 ### 🔍 Intelligence Extraction
-- **Regex-Based Extraction** - Real-time pattern matching for UPI IDs, bank accounts, phone numbers
+- **Regex-Based Extraction** - UPI IDs, bank accounts, phones, IFSC, emails, phishing links
 - **LLM-Enhanced Analysis** - AI-powered extraction of subtle intelligence
 - **Merged Intelligence** - Combines multiple sources for comprehensive data collection
 
@@ -65,7 +67,17 @@ India loses approximately **₹1.25 lakh crore annually** to cyber fraud, with e
 - **Actionable Alerts** - Triggers when critical information (bank/UPI) is detected
 - **Async Processing** - Non-blocking callback delivery
 
-### 💾 Persistent Storage
+### � Multi-Channel Support
+- **REST API Channel** - Standard JSON interface for bots, dashboards, and demos
+- **WhatsApp Channel (Optional)** - Live WhatsApp webhook ingestion + responses
+- **Swagger UI** - Built-in interactive docs at `/apidocs`
+
+### 🧠 Conversation Analyzer
+- **Anti-Repetition** - Avoids repeating the same questions or phrases
+- **Phase-Aware Tactics** - Adjusts behavior as the scammer escalates
+- **Reverse Extraction** - Safely asks for scammer details when relevant
+
+### � Persistent Storage
 - **Supabase Integration** - Cloud-based PostgreSQL for data persistence
 - **Session Management** - Tracks conversations across multiple messages
 - **Intelligence Archive** - Stores all extracted scammer data
@@ -82,21 +94,21 @@ India loses approximately **₹1.25 lakh crore annually** to cyber fraud, with e
 │  ┌──────────┐    ┌──────────────┐    ┌───────────────────────┐ │
 │  │ Scammer  │───▶│  Flask API   │───▶│   Persona Generator   │ │
 │  │ Message  │    │ /api/honey-  │    │   (Seeded Random)     │ │
-│  └──────────┘    │     pot      │    └───────────────────────┘ │
+│  └──────────┘    │ /webhook     │    └───────────────────────┘ │
 │                  └──────┬───────┘                               │
 │                         │                                       │
 │       ┌─────────────────┼─────────────────┐                    │
 │       ▼                 ▼                 ▼                    │
-│  ┌─────────┐    ┌──────────────┐   ┌─────────────┐             │
-│  │ Regex   │    │   LLM Client │   │  Supabase   │             │
-│  │ Extract │    │  (GPT-4/etc) │   │  Database   │             │
-│  └────┬────┘    └──────┬───────┘   └─────────────┘             │
-│       │                │                                        │
-│       └────────┬───────┘                                        │
+│  ┌─────────────┐  ┌──────────────┐   ┌─────────────┐           │
+│  │ Conversation│  │   LLM Client │   │  Supabase   │           │
+│  │  Analyzer   │  │  (OpenRouter)│   │  Database   │           │
+│  └────┬────────┘  └──────┬───────┘   └─────────────┘           │
+│       │                 │                                      │
+│       └────────┬────────┘                                      │
 │                ▼                                                │
 │       ┌────────────────┐    ┌────────────────┐                 │
-│       │    Merged      │───▶│ GUVI Callback  │                 │
-│       │  Intelligence  │    │   (Async)      │                 │
+│       │  Intelligence  │───▶│ GUVI Callback  │                 │
+│       │   Extraction   │    │   (Async)      │                 │
 │       └────────────────┘    └────────────────┘                 │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -109,7 +121,8 @@ India loses approximately **₹1.25 lakh crore annually** to cyber fraud, with e
 ### Prerequisites
 - Python 3.11 or higher
 - Supabase account (free tier works)
-- OpenAI/LLM API key
+- OpenRouter API key (or compatible LLM gateway)
+- WhatsApp Cloud API credentials (optional)
 
 ### Installation
 
@@ -136,21 +149,30 @@ copy .env.example .env
 Create a `.env` file with the following variables:
 
 ```env
-# Supabase Configuration
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_KEY=your_supabase_anon_key
+# API Security
+HONEYPOT_API_KEY=your_api_key_here
 
-# LLM Configuration  
-LLM_API_KEY=your_openai_or_groq_api_key
-LLM_MODEL=gpt-4o-mini
+# OpenRouter AI
+OPENROUTER_API_KEY=your_openrouter_key_here
+OPENROUTER_MODEL=google/gemini-2.0-flash-exp:free
+OPENROUTER_MODEL_2=meta-llama/llama-3.1-405b-instruct:free
+OPENROUTER_FALLBACK_MODEL=meta-llama/llama-3.3-70b-instruct:free
+
+# Supabase Configuration
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_KEY=your_supabase_service_key
 
 # GUVI Callback
-GUVI_CALLBACK_URL=your_guvi_callback_url
+GUVI_CALLBACK_URL=https://hackathon.guvi.in/api/updateHoneyPotFinalResult
 
-# API Security
-HONEYPOT_API_KEY=sk_ironmask_hackathon_2026
+# WhatsApp Cloud API (Optional)
+WHATSAPP_PHONE_ID=your_phone_number_id
+WHATSAPP_ACCESS_TOKEN=your_access_token
+WHATSAPP_VERIFY_TOKEN=honeypot_verify_2026
+WHATSAPP_APP_SECRET=your_app_secret
 
-# Server
+# Server (Optional)
 PORT=5000
 FLASK_DEBUG=false
 ```
@@ -177,6 +199,11 @@ Server will start at `http://localhost:5000`
 ---
 
 ## 📚 API Documentation
+
+### Swagger UI
+
+- `GET /apidocs` — Interactive Swagger UI
+- `GET /apispec.json` — OpenAPI JSON spec
 
 ### Main Endpoint
 
@@ -216,9 +243,15 @@ Content-Type: application/json
   "extractedIntelligence": {
     "bankAccounts": ["1234567890123"],
     "upiIds": ["scammer@ybl"],
+    "emails": ["fraudster@gmail.com"],
     "phishingLinks": ["bit.ly/fake-link"],
     "phoneNumbers": ["+919876543210"],
-    "suspiciousKeywords": ["blocked", "verify", "urgent"]
+    "ifscCodes": ["SBIN0001234"],
+    "suspiciousKeywords": ["blocked", "verify", "urgent"],
+    "fakeCredentials": ["EmpID: 98765"],
+    "aadhaarNumbers": ["1234 5678 9012"],
+    "panNumbers": ["ABCDE1234F"],
+    "mentionedBanks": ["sbi"]
   },
   "agentNotes": "Scammer is attempting bank fraud using fear tactics",
   "reply": "Haan ji? I am not understanding... which account is blocked? Please wait, my grandson is coming, he knows computer..."
@@ -251,6 +284,20 @@ To enable it:
 #### `GET /`
 
 Returns service information and API usage instructions.
+
+### WhatsApp Endpoints (Optional)
+
+#### `GET /webhook`
+
+Meta webhook verification endpoint (configured in WhatsApp Cloud API console).
+
+#### `POST /webhook`
+
+Receives WhatsApp messages and routes them through the honeypot.
+
+#### `GET /whatsapp/status`
+
+Returns whether WhatsApp integration is configured.
 
 ---
 
@@ -289,6 +336,9 @@ The system generates authentic Indian elderly personas:
 | **IFSC Code** | `XXXX0XXXXXX` | `SBIN0001234` |
 | **Phone** | +91 + 10 digits | `+919876543210` |
 | **Phishing Links** | URLs, bit.ly | `bit.ly/fake-kyc` |
+| **Email** | `name@domain` | `fraudster@gmail.com` |
+| **Aadhaar** | 12 digits | `1234 5678 9012` |
+| **PAN** | `ABCDE1234F` | `ABCDE1234F` |
 
 ### Scam Keywords Detected
 
@@ -299,7 +349,13 @@ The system generates authentic Indian elderly personas:
 
 ---
 
-## 🚀 Deployment
+## 📱 WhatsApp Setup
+
+For a complete setup guide, see [WHATSAPP_SETUP.md](file:///h:/guvi%20project/docs/WHATSAPP_SETUP.md).
+
+---
+
+## � Deployment
 
 ### Render (Recommended)
 
@@ -307,10 +363,10 @@ The system generates authentic Indian elderly personas:
 # render.yaml included
 services:
   - type: web
-    name: operation-iron-mask
+    name: guvi-honeypot
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
 ```
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
@@ -337,10 +393,11 @@ git push heroku main
 |----------|------------|
 | **Backend** | Flask 3.0+ |
 | **Database** | Supabase (PostgreSQL) |
-| **AI/LLM** | OpenAI GPT-4 / Groq |
+| **AI/LLM** | OpenRouter (multi-model LLM routing) |
 | **Validation** | Pydantic 2.5+ |
-| **HTTP Client** | HTTPX (async) |
+| **HTTP Client** | Requests + HTTPX |
 | **Fake Data** | Faker |
+| **API Docs** | Flasgger (Swagger UI) |
 | **WSGI Server** | Gunicorn |
 | **Deployment** | Render / Railway |
 
@@ -350,12 +407,16 @@ git push heroku main
 
 ```
 guvi-project-1/
+├── .github/
+│   └── workflows/
+│       └── keep-warm.yml        # Scheduled health ping
 ├── 📄 app.py                    # Main Flask application
 ├── 📁 core/
 │   ├── __init__.py
+│   ├── conversation_analyzer.py # Anti-repetition tactics
 │   ├── persona.py               # Dynamic persona generation
 │   ├── fake_data.py             # Realistic Indian data generator
-│   └── llm_client.py            # LLM integration (GPT/Groq)
+│   └── llm_client.py            # OpenRouter LLM integration
 ├── 📁 models/
 │   ├── __init__.py
 │   ├── intelligence.py          # Regex-based intelligence extraction
@@ -364,17 +425,26 @@ guvi-project-1/
 │   ├── __init__.py
 │   ├── supabase_client.py       # Database operations
 │   ├── guvi_callback.py         # GUVI webhook integration
+│   ├── whatsapp_handler.py      # WhatsApp Cloud API handler
 │   └── luhn.py                  # Card number validation
 ├── 📁 data/
 │   └── indian_data.json         # Indian names, cities, banks dataset
 ├── 📁 database/
 │   └── schema.sql               # Supabase table definitions
+├── 📁 docs/
+│   └── WHATSAPP_SETUP.md         # WhatsApp setup guide
 ├── 📁 tests/
-│   └── test_all.py              # Unit tests
+│   ├── test_all.py               # Core tests
+│   ├── test_analyzer.py          # Analyzer tests
+│   ├── test_extraction.py        # Extraction tests
+│   └── test_memory.py            # Session memory tests
+├── 📄 DEPLOYMENT.md              # Deployment checklist
 ├── 📄 requirements.txt          # Python dependencies
 ├── 📄 render.yaml               # Render deployment config
 ├── 📄 Procfile                  # Heroku deployment config
 ├── 📄 .env.example              # Environment template
+├── 📄 test_local_api.py          # Local API smoke test
+├── 📄 test_remote_api.py         # Remote API smoke test
 └── 📄 README.md                 # This file
 ```
 
@@ -416,6 +486,7 @@ curl -X POST http://localhost:5000/api/honey-pot \
 - ✅ Personas use fake but realistic-looking data
 - ✅ All extracted intelligence is for law enforcement only
 - ✅ Environment variables for sensitive configuration
+- ✅ WhatsApp webhook signature verification supported (optional)
 
 ---
 
@@ -457,7 +528,7 @@ This project is developed for the **GUVI HCL Hackathon 2026** and is intended fo
 
 - **GUVI** - For organizing the AI Impact Buildathon
 - **HCL** - For sponsoring the hackathon
-- **OpenAI** - For LLM capabilities
+- **OpenRouter & Model Providers** - For LLM capabilities
 - **Supabase** - For database infrastructure
 
 ---

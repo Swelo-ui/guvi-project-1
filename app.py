@@ -196,6 +196,73 @@ Send API key in header: `x-api-key: sk_ironmask_hackathon_2026`
     }
 }
 
+def build_openapi_spec() -> dict:
+    return {
+        "swagger": "2.0",
+        "info": swagger_template.get("info", {}),
+        "basePath": "/",
+        "schemes": ["https", "http"],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "securityDefinitions": swagger_template.get("securityDefinitions", {}),
+        "tags": swagger_template.get("tags", []),
+        "definitions": swagger_template.get("definitions", {}),
+        "paths": {
+            "/api/honey-pot": {
+                "post": {
+                    "tags": ["Honeypot"],
+                    "summary": "Honeypot chat",
+                    "description": "Receives scam messages and returns AI responses.",
+                    "security": [{"ApiKeyAuth": []}],
+                    "parameters": [
+                        {
+                            "in": "header",
+                            "name": "x-api-key",
+                            "type": "string",
+                            "required": True,
+                            "description": "API authentication key",
+                            "default": "sk_ironmask_hackathon_2026"
+                        },
+                        {
+                            "in": "body",
+                            "name": "body",
+                            "required": True,
+                            "schema": {"$ref": "#/definitions/HoneyPotRequest"}
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Successful Engagement Response",
+                            "schema": {"$ref": "#/definitions/HoneyPotResponse"}
+                        },
+                        "400": {"description": "Invalid Input"},
+                        "401": {"description": "Unauthorized - Invalid API Key"}
+                    }
+                }
+            },
+            "/health": {
+                "get": {
+                    "tags": ["System"],
+                    "summary": "Health check",
+                    "responses": {"200": {"description": "OK"}}
+                }
+            },
+            "/": {
+                "get": {
+                    "tags": ["System"],
+                    "summary": "Service info",
+                    "responses": {"200": {"description": "Service information"}}
+                }
+            }
+        }
+    }
+
+@app.before_request
+def serve_apispec():
+    if request.path == "/apispec.json":
+        return jsonify(build_openapi_spec())
+    return None
+
 swagger = Swagger(app, config=swagger_config, template=swagger_template)
 
 # Logging

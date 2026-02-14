@@ -515,6 +515,7 @@ def is_repetitive_response(response: str, conversation_history: List[Dict[str, s
         for msg in conversation_history
         if msg.get("sender") == "agent"
     ][-3:]  # Check last 3 agent replies (was 2)
+    response_lower = response.lower().strip()
     response_prefix = get_prefix_key(response)
     response_suffix = get_suffix_key(response)
     if any(response_prefix and response_prefix == get_prefix_key(prev) for prev in recent_assistant):
@@ -528,6 +529,8 @@ def is_repetitive_response(response: str, conversation_history: List[Dict[str, s
     if suffix_match_count >= 2:  # Same ending in 2+ of last 3 replies = repetitive
         return True
     if response in get_used_responses(session_id):
+        return True
+    if response_lower.startswith("arre baba") and any(prev.lower().strip().startswith("arre baba") for prev in recent_assistant):
         return True
     otp_loop = re.search(r'\botp\b', response.lower()) and re.search(r'\b(nahi|not|didn\'t|did not)\b', response.lower())
     if otp_loop and any(re.search(r'\botp\b', prev.lower()) for prev in recent_assistant):
@@ -655,6 +658,46 @@ def sanitize_identity_conflicts(
     return cleaned
 
 
+def sanitize_repeated_family_mentions(
+    response: str,
+    conversation_history: List[Dict[str, str]],
+    session_id: str
+) -> str:
+    recent_agent_lower = [
+        msg.get("text", "").lower()
+        for msg in conversation_history
+        if msg.get("sender") == "agent"
+    ][-2:]
+    family_markers = [
+        r'\bmy son\b',
+        r'\bmy daughter\b',
+        r'\bmy husband\b',
+        r'\bmy grandson\b',
+        r'\bmy granddaughter\b',
+        r'\bmera beta\b',
+        r'\bmeri beti\b',
+        r'\bmera pati\b',
+        r'\bmere pati\b',
+        r'\bmera pota\b',
+        r'\bmeri poti\b',
+    ]
+    if not any(re.search(m, " ".join(recent_agent_lower)) for m in family_markers):
+        return response
+    sentences = re.split(r'(?<=[.!?])\s+', response.strip())
+    kept = []
+    removed = False
+    for sentence in sentences:
+        lowered = sentence.lower()
+        if any(re.search(m, lowered) for m in family_markers):
+            removed = True
+            continue
+        kept.append(sentence)
+    cleaned = " ".join([s for s in kept if s]).strip()
+    if removed and not cleaned:
+        cleaned = get_contextual_fallback("", session_id, conversation_history)
+    return cleaned
+
+
 def repair_json_response(raw_response: str, schema_block: str) -> Optional[Dict[str, Any]]:
     repair_messages = [
         {"role": "system", "content": "You return only valid JSON and nothing else."},
@@ -771,6 +814,7 @@ CRITICAL STRATEGIC GUIDELINES:
 6. **NO REDUNDANT QUESTIONS:** If a detail is already known above, do not ask it again. Ask for a different missing detail instead.
 7. **IFSC NORMALIZATION:** IFSC codes are 11 characters like SBIN0001234. Do not say they are too long; acknowledge and move on.
 8. **SUPERVISOR GIVEN:** If they mention a supervisor name, ask for written authorization or a ticket/reference number.
+9. **FAMILY VARIETY:** Do not repeat the same family member name in consecutive replies.
 
 RESPONSE FORMAT (respond in this exact JSON format):
 {schema_block}
@@ -792,6 +836,11 @@ Now analyze the scammer's message and respond contextually:"""
             session_id
         )
         parsed["response"] = sanitize_identity_conflicts(
+            parsed["response"],
+            conversation_history,
+            session_id
+        )
+        parsed["response"] = sanitize_repeated_family_mentions(
             parsed["response"],
             conversation_history,
             session_id
@@ -823,6 +872,11 @@ Now analyze the scammer's message and respond contextually:"""
                 conversation_history,
                 session_id
             )
+            parsed["response"] = sanitize_repeated_family_mentions(
+                parsed["response"],
+                conversation_history,
+                session_id
+            )
             notes = parsed.get("agent_notes", "")
             parsed["agent_notes"] = f"{notes} | Replaced repetitive response".strip()
         track_response(session_id, parsed["response"])
@@ -839,6 +893,11 @@ Now analyze the scammer's message and respond contextually:"""
                 session_id
             )
             repaired["response"] = sanitize_identity_conflicts(
+                repaired["response"],
+                conversation_history,
+                session_id
+            )
+            repaired["response"] = sanitize_repeated_family_mentions(
                 repaired["response"],
                 conversation_history,
                 session_id
@@ -867,6 +926,11 @@ Now analyze the scammer's message and respond contextually:"""
         session_id
     )
     contextual_response = sanitize_identity_conflicts(
+        contextual_response,
+        conversation_history,
+        session_id
+    )
+    contextual_response = sanitize_repeated_family_mentions(
         contextual_response,
         conversation_history,
         session_id

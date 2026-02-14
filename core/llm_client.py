@@ -615,6 +615,8 @@ def sanitize_redundant_questions(
                 "Aap kab se is bank mein kaam kar rahe ho?",
                 "Aapka reference number kya hai?",
                 "Mujhe confirmation letter bhej dijiye.",
+                "Written authorization letter bhejiye.",
+                "Aapka ticket number kya hai?",
                 "Main apne bete ko bhi bula leta hoon, ek minute.",
             ]
             for gp in general_prompts:
@@ -767,6 +769,8 @@ CRITICAL STRATEGIC GUIDELINES:
 
 5. **NATURAL STALLING:** Use believable delays relevant to the context.
 6. **NO REDUNDANT QUESTIONS:** If a detail is already known above, do not ask it again. Ask for a different missing detail instead.
+7. **IFSC NORMALIZATION:** IFSC codes are 11 characters like SBIN0001234. Do not say they are too long; acknowledge and move on.
+8. **SUPERVISOR GIVEN:** If they mention a supervisor name, ask for written authorization or a ticket/reference number.
 
 RESPONSE FORMAT (respond in this exact JSON format):
 {schema_block}

@@ -20,7 +20,7 @@ PATTERNS = {
     "url_shortener": r'(?:bit\.ly|tinyurl\.com|goo\.gl|t\.co|is\.gd|rb\.gy|cutt\.ly|short\.io|ow\.ly)/[^\s<>"{}|\\^`\[\]]+',
     "whatsapp": r'wa\.me/\d+',
     # Fake credentials: employee IDs, fake refs
-    "fake_credential": r'(?:emp(?:loyee)?|staff|officer)[\s_-]?(?:id)?[\s:_-]*([a-zA-Z0-9]+)',
+    "fake_credential": r'(?:emp(?:loyee)?|staff|officer)\s*(?:id|code|no|number)?[\s:_-]*([A-Z0-9]*\d[A-Z0-9]*)',
     # Aadhaar: 12 digits, optionally in groups of 4 separated by spaces/dashes
     "aadhaar": r'\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b',
     # PAN: ABCDE1234F format (5 uppercase, 4 digits, 1 uppercase)
@@ -319,7 +319,7 @@ def extract_fake_credentials(text: str) -> List[str]:
     """Extract fake employee IDs, staff IDs, and similar credentials."""
     matches = re.findall(PATTERNS["fake_credential"], text, re.IGNORECASE)
     # Also look for patterns like "Emp123sumit"
-    additional = re.findall(r'\b[Ee]mp\d*[a-zA-Z]*\d*\b', text)
+    additional = re.findall(r'\b[Ee]mp\d+[a-zA-Z]*\d*\b', text)
     return _deduplicate([m.strip() for m in matches + additional if m.strip()])
 
 

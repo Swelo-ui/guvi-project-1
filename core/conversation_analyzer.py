@@ -263,6 +263,8 @@ REVERSE_EXTRACT_BY_CATEGORY = {
         "Can you send official document on WhatsApp?",
         "Send me proof from your bank email.",
         "Share your ID proof. Then I trust you.",
+        "Written authorization letter bhejiye.",
+        "Aapka reference number ya ticket number kya hai?",
     ],
     "aadhaar": [
         "Aapka Aadhaar number bata dijiye, verification ke liye.",

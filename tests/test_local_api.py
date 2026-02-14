@@ -45,21 +45,18 @@ def send_message(text):
         print(f"❌ Exception: {e}")
         return ""
 
-print(f"🚀 Testing Consistency for Session: {SESSION_ID}")
-time.sleep(2)
+def main():
+    print(f"🚀 Testing Consistency for Session: {SESSION_ID}")
+    time.sleep(2)
 
-# Turn 1
-reply1 = send_message("Hello, I am calling from SBI bank. Your account is blocked.")
+    reply1 = send_message("Hello, I am calling from SBI bank. Your account is blocked.")
+    reply2 = send_message("Yes, urgent. Give me your account number immediately.")
+    reply3 = send_message("Madam, verify quickly. What is your son's name? We need to verify with him.")
+    reply4 = send_message("Okay, give me the OTP sent to your phone number ending in 9898.")
 
-# Turn 2
-reply2 = send_message("Yes, urgent. Give me your account number immediately.")
+    print("\n✅ Test Complete. Check manually for:")
+    print("1. Did the name/son's name change?")
+    print("2. Was there repetition of 'network slow'?")
 
-# Turn 3
-reply3 = send_message("Madam, verify quickly. What is your son's name? We need to verify with him.")
-
-# Turn 4
-reply4 = send_message("Okay, give me the OTP sent to your phone number ending in 9898.")
-
-print("\n✅ Test Complete. Check manually for:")
-print("1. Did the name/son's name change?")
-print("2. Was there repetition of 'network slow'?")
+if __name__ == "__main__":
+    main()

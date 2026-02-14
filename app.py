@@ -13,7 +13,7 @@ import logging
 import threading
 import time
 import requests
-from datetime import datetime
+from datetime import datetime, UTC
 
 from flask import Flask, request, jsonify, redirect
 from flasgger import Swagger
@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from core.persona import generate_persona, get_system_prompt, get_extraction_prompt
 from core.llm_client import generate_agent_response, get_random_fallback
 from models.intelligence import extract_all_intelligence, merge_intelligence, has_actionable_intel
-from utils.supabase_client import (
+from utils.insforge_client import (
     get_persona, save_persona, update_session_activity,
     save_intelligence, save_message, mark_callback_sent,
     get_cached_persona, cache_persona, get_callback_sent
@@ -589,7 +589,7 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "service": "Operation Iron-Mask Honeypot",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "whatsapp_enabled": whatsapp_configured
     }), 200
 

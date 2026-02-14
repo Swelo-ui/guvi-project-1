@@ -78,7 +78,7 @@ India loses approximately **₹1.25 lakh crore annually** to cyber fraud, with e
 - **Reverse Extraction** - Safely asks for scammer details when relevant
 
 ### � Persistent Storage
-- **Supabase Integration** - Cloud-based PostgreSQL for data persistence
+- **InsForge Integration** - Cloud-based PostgreSQL for data persistence
 - **Session Management** - Tracks conversations across multiple messages
 - **Intelligence Archive** - Stores all extracted scammer data
 
@@ -100,7 +100,7 @@ India loses approximately **₹1.25 lakh crore annually** to cyber fraud, with e
 │       ┌─────────────────┼─────────────────┐                    │
 │       ▼                 ▼                 ▼                    │
 │  ┌─────────────┐  ┌──────────────┐   ┌─────────────┐           │
-│  │ Conversation│  │   LLM Client │   │  Supabase   │           │
+│  │ Conversation│  │   LLM Client │   │  InsForge   │           │
 │  │  Analyzer   │  │  (OpenRouter)│   │  Database   │           │
 │  └────┬────────┘  └──────┬───────┘   └─────────────┘           │
 │       │                 │                                      │
@@ -120,7 +120,7 @@ India loses approximately **₹1.25 lakh crore annually** to cyber fraud, with e
 
 ### Prerequisites
 - Python 3.11 or higher
-- Supabase account (free tier works)
+- InsForge account
 - OpenRouter API key (or compatible LLM gateway)
 - WhatsApp Cloud API credentials (optional)
 
@@ -158,10 +158,9 @@ OPENROUTER_MODEL=google/gemini-2.0-flash-exp:free
 OPENROUTER_MODEL_2=meta-llama/llama-3.1-405b-instruct:free
 OPENROUTER_FALLBACK_MODEL=meta-llama/llama-3.3-70b-instruct:free
 
-# Supabase Configuration
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_KEY=your_supabase_service_key
+# InsForge Configuration
+INSFORGE_BASE_URL=https://your-project.insforge.app
+INSFORGE_ANON_KEY=your_insforge_anon_key
 
 # GUVI Callback
 GUVI_CALLBACK_URL=https://hackathon.guvi.in/api/updateHoneyPotFinalResult
@@ -179,7 +178,7 @@ FLASK_DEBUG=false
 
 ### Database Setup
 
-Run the schema in your Supabase SQL Editor:
+Run the schema in your InsForge SQL editor:
 
 ```sql
 -- See database/schema.sql for full schema
@@ -392,7 +391,7 @@ git push heroku main
 | Category | Technology |
 |----------|------------|
 | **Backend** | Flask 3.0+ |
-| **Database** | Supabase (PostgreSQL) |
+| **Database** | InsForge (PostgreSQL) |
 | **AI/LLM** | OpenRouter (multi-model LLM routing) |
 | **Validation** | Pydantic 2.5+ |
 | **HTTP Client** | Requests + HTTPX |
@@ -423,14 +422,14 @@ guvi-project-1/
 │   └── schemas.py               # Pydantic data models
 ├── 📁 utils/
 │   ├── __init__.py
-│   ├── supabase_client.py       # Database operations
+│   ├── insforge_client.py       # Database operations
 │   ├── guvi_callback.py         # GUVI webhook integration
 │   ├── whatsapp_handler.py      # WhatsApp Cloud API handler
 │   └── luhn.py                  # Card number validation
 ├── 📁 data/
 │   └── indian_data.json         # Indian names, cities, banks dataset
 ├── 📁 database/
-│   └── schema.sql               # Supabase table definitions
+│   └── schema.sql               # Database table definitions
 ├── 📁 docs/
 │   └── WHATSAPP_SETUP.md         # WhatsApp setup guide
 ├── 📁 tests/
@@ -529,7 +528,7 @@ This project is developed for the **GUVI HCL Hackathon 2026** and is intended fo
 - **GUVI** - For organizing the AI Impact Buildathon
 - **HCL** - For sponsoring the hackathon
 - **OpenRouter & Model Providers** - For LLM capabilities
-- **Supabase** - For database infrastructure
+- **InsForge** - For database infrastructure
 
 ---
 

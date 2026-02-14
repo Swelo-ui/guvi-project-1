@@ -1,5 +1,5 @@
 -- Operation Iron-Mask: Honeypot Database Schema
--- Run this in Supabase SQL Editor: https://supabase.com/dashboard/project/bmdoouzqinpydwzktmfz/sql
+-- Run this in your InsForge SQL editor
 
 -- Table: personas (stores consistent victim personas per session)
 CREATE TABLE IF NOT EXISTS personas (

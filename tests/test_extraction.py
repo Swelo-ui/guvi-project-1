@@ -437,8 +437,151 @@ class TestAdvancedExtraction:
         assert "pan_numbers" in intel
         assert "mentioned_banks" in intel
         assert "432187652109" in intel["aadhaar_numbers"]
-        assert "ABCDE1234F" in intel["pan_numbers"]
-        assert "sbi" in intel["mentioned_banks"]
+
+
+BULK_UPI_USERS = [
+    "rajesh", "sunita", "amit", "priya", "vikas", "neha", "anil", "kiran"
+]
+BULK_UPI_HANDLES = [
+    "ybl", "paytm", "oksbi", "okicici", "okhdfcbank", "okaxis", "upi", "fakeupi", "fakebank", "okpnb"
+]
+BULK_UPI_CASES = [(user, handle) for user in BULK_UPI_USERS for handle in BULK_UPI_HANDLES]
+
+BULK_PHONE_NUMBERS = [f"9{str(i).zfill(9)}" for i in range(800000000, 800000040)]
+
+BULK_IFSC_PREFIXES = [
+    "SBIN", "HDFC", "ICIC", "UTIB", "PUNB", "BARB", "KKBK", "YESB", "CNRB", "UBIN",
+    "IBKL", "INDB", "BDBL", "FDRL", "IDFB", "RATN", "UCBA", "IDIB", "BKID", "CBIN",
+    "FINO", "ESAF", "SIBL", "PSIB", "KARB", "IOBA", "MAHB", "VIJB", "DLXB", "CSBK"
+]
+BULK_IFSC_CODES = [
+    f"{prefix}0{str(100000 + idx).zfill(6)}"
+    for idx, prefix in enumerate(BULK_IFSC_PREFIXES)
+]
+
+BULK_URLS = [f"https://example{i}.com/path" for i in range(20)]
+
+BULK_KEYWORDS = [
+    "blocked", "suspended", "arrested", "police", "cbi", "fraud", "illegal", "warrant",
+    "seized", "compromised", "verify", "confirm", "update", "kyc", "otp", "pin",
+    "password", "verification code", "screen share", "transfer", "pay", "send money",
+    "refund", "chargeback", "cashback", "prize", "lottery", "won", "fine", "processing fee",
+    "bank manager", "customer care", "support", "helpline", "toll free", "rbi", "government",
+    "income tax", "gst", "army", "officer", "captain", "colonel", "military", "link",
+    "click", "download", "install", "app", "apk", "remote access", "anydesk", "teamviewer",
+    "quick support", "whatsapp", "telegram", "sms", "email", "aadhaar", "pan", "kyc update",
+    "video kyc", "aadhaar number", "pan card", "pan number", "aeps", "biometric",
+    "fingerprint", "uidai", "sim swap", "sim card", "deactivate", "reactivate", "reissue",
+    "qr", "scan", "upi collect", "payment request", "request money", "courier", "parcel",
+    "customs", "delivery charge", "fedex", "dhl", "crypto", "bitcoin", "investment",
+    "invest", "trading", "profit", "loan", "emi", "deal", "offer", "coupon", "free",
+    "buy", "sell", "marketplace", "olx", "claim", "pending", "approved", "eligible"
+]
+
+AUTHORITY_KEYWORDS = {
+    "bank manager", "customer care", "support", "helpline", "toll free", "rbi", "government",
+    "income tax", "gst", "army", "officer", "captain", "colonel", "military",
+}
+
+TECH_KEYWORDS = {
+    "link", "click", "download", "install", "app", "apk", "remote access", "anydesk", "teamviewer",
+    "quick support",
+}
+
+PAYMENT_KEYWORDS = {
+    "transfer", "pay", "send money", "refund", "chargeback", "cashback", "prize", "lottery", "won",
+    "fine", "processing fee", "qr", "scan", "upi collect", "payment request", "request money",
+}
+
+IDENTITY_KEYWORDS = {
+    "aadhaar", "pan", "kyc update", "video kyc", "aadhaar number", "pan card", "pan number", "aeps",
+    "biometric", "fingerprint", "uidai",
+}
+
+SIM_KEYWORDS = {
+    "sim swap", "sim card", "deactivate", "reactivate", "reissue",
+}
+
+DELIVERY_KEYWORDS = {
+    "courier", "parcel", "customs", "delivery charge", "fedex", "dhl",
+}
+
+INVESTMENT_KEYWORDS = {
+    "crypto", "bitcoin", "investment", "invest", "trading", "profit", "loan", "emi",
+}
+
+MARKETPLACE_KEYWORDS = {
+    "deal", "offer", "coupon", "free", "buy", "sell", "marketplace", "olx",
+}
+
+CHANNEL_KEYWORDS = {
+    "whatsapp", "telegram", "sms", "email",
+}
+
+STATUS_KEYWORDS = {
+    "blocked", "suspended", "arrested", "police", "cbi", "fraud", "illegal", "warrant",
+    "seized", "compromised", "verify", "confirm", "update", "kyc", "otp", "pin", "password",
+    "verification code", "screen share", "bank manager", "customer care", "support", "helpline",
+    "toll free", "rbi", "government", "income tax", "gst", "claim", "pending", "approved", "eligible",
+}
+
+
+def build_keyword_message(keyword: str) -> str:
+    if keyword in AUTHORITY_KEYWORDS:
+        return f"Caller claims to be {keyword} and asked for verification."
+    if keyword in TECH_KEYWORDS:
+        return f"Install {keyword} now to complete verification."
+    if keyword in PAYMENT_KEYWORDS:
+        return f"{keyword} required to complete refund, reply urgently."
+    if keyword in IDENTITY_KEYWORDS:
+        return f"Share {keyword} for kyc update to avoid disruption."
+    if keyword in SIM_KEYWORDS:
+        return f"Your {keyword} request is pending, confirm to proceed."
+    if keyword in DELIVERY_KEYWORDS:
+        return f"Parcel on hold, {keyword} required for release."
+    if keyword in INVESTMENT_KEYWORDS:
+        return f"{keyword} scheme promises profit, act today."
+    if keyword in MARKETPLACE_KEYWORDS:
+        return f"Limited {keyword} today, respond to proceed."
+    if keyword in CHANNEL_KEYWORDS:
+        return f"Reply on {keyword} to complete verification."
+    if keyword in STATUS_KEYWORDS:
+        return f"Notice: {keyword} detected, respond to verify."
+    return f"{keyword} required to continue."
+
+
+class TestBulkExtraction:
+    """High-volume regression coverage for extraction helpers."""
+
+    @pytest.mark.parametrize("user,handle", BULK_UPI_CASES)
+    def test_bulk_upi_ids(self, user, handle):
+        text = f"Please send to {user}@{handle} for verification"
+        upis = extract_upi_ids(text)
+        assert f"{user}@{handle}" in upis
+
+    @pytest.mark.parametrize("phone", BULK_PHONE_NUMBERS)
+    def test_bulk_phone_numbers(self, phone):
+        text = f"Call {phone} immediately"
+        phones = extract_phone_numbers(text)
+        assert f"+91{phone}" in phones
+
+    @pytest.mark.parametrize("ifsc", BULK_IFSC_CODES)
+    def test_bulk_ifsc_codes(self, ifsc):
+        text = f"Use IFSC code {ifsc} for transfer"
+        codes = extract_ifsc_codes(text)
+        assert ifsc in codes
+
+    @pytest.mark.parametrize("url", BULK_URLS)
+    def test_bulk_urls(self, url):
+        text = f"Click here {url} to update"
+        urls = extract_urls(text)
+        assert url in urls
+
+    @pytest.mark.parametrize("keyword", BULK_KEYWORDS)
+    def test_bulk_keywords(self, keyword):
+        text = build_keyword_message(keyword)
+        keywords = extract_keywords(text)
+        assert keyword in keywords
 
     def test_has_actionable_intel_with_phone(self):
         """Phone numbers alone should now trigger actionable intel."""

@@ -10,7 +10,7 @@ import requests
 import hashlib
 import hmac
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, UTC
 
 from dotenv import load_dotenv
 
@@ -258,7 +258,7 @@ def add_to_conversation_history(phone_number: str, sender: str, text: str):
     _conversation_cache[key].append({
         "sender": sender,
         "text": text,
-        "timestamp": int(datetime.utcnow().timestamp() * 1000)
+        "timestamp": int(datetime.now(UTC).timestamp() * 1000)
     })
     
     # Keep only last 20 messages

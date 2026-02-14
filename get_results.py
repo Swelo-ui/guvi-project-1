@@ -1,28 +1,31 @@
 """
-Get Full Conversation Results from Supabase
+Get Full Conversation Results from InsForge
 This shows all the extracted intelligence from your honeypot sessions
 """
+import os
 import requests
 import json
 
-# Supabase Config
-SUPABASE_URL = "https://bmdoouzqinpydwzktmfz.supabase.co"
-SUPABASE_KEY = "sb_publishable_KkVlZEWWHJki51t8eUvfEA_eHoDvAVv"
+from dotenv import load_dotenv
+
+load_dotenv()
+
+INSFORGE_BASE_URL = os.getenv("INSFORGE_BASE_URL", "").rstrip("/")
+INSFORGE_KEY = os.getenv("INSFORGE_ANON_KEY") or os.getenv("INSFORGE_API_KEY", "")
 
 headers = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Authorization": f"Bearer {INSFORGE_KEY}",
     "Content-Type": "application/json"
 }
 
-print("📊 Fetching Honeypot Results from Supabase...")
+print("📊 Fetching Honeypot Results from InsForge...")
 print("=" * 60)
 
 # Get intelligence data
 try:
     # Get all intelligence records
     response = requests.get(
-        f"{SUPABASE_URL}/rest/v1/intelligence?order=created_at.desc&limit=10",
+        f"{INSFORGE_BASE_URL}/api/database/records/intelligence?order=created_at.desc&limit=10",
         headers=headers,
         timeout=15
     )
@@ -48,7 +51,7 @@ print("\n" + "=" * 60)
 # Get conversations
 try:
     response = requests.get(
-        f"{SUPABASE_URL}/rest/v1/conversations?order=created_at.desc&limit=5",
+        f"{INSFORGE_BASE_URL}/api/database/records/conversations?order=created_at.desc&limit=5",
         headers=headers,
         timeout=15
     )

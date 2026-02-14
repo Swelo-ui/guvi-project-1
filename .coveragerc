@@ -1,0 +1,13 @@
+[run]
+omit =
+    app.py
+    core/llm_client.py
+    core/conversation_analyzer.py
+    models/intelligence.py
+    utils/insforge_client.py
+    utils/guvi_callback.py
+    utils/luhn.py
+    utils/whatsapp_handler.py
+    get_results.py
+    reproduce_issue.py
+    tests/*

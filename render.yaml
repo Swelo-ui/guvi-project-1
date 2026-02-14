@@ -13,9 +13,9 @@ services:
         value: openai/gpt-oss-120b
       - key: OPENROUTER_FALLBACK_MODEL
         value: google/gemini-2.5-flash-lite
-      - key: SUPABASE_URL
+      - key: INSFORGE_BASE_URL
         sync: false
-      - key: SUPABASE_KEY
+      - key: INSFORGE_ANON_KEY
         sync: false
       - key: GUVI_CALLBACK_URL
         value: https://hackathon.guvi.in/api/updateHoneyPotFinalResult

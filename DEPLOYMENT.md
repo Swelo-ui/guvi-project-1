@@ -12,8 +12,8 @@ pip install -r requirements.txt
 The `.env` file is already configured with your API keys.
 
 ### 3. Set Up Database
-1. Go to [Supabase Dashboard](https://supabase.com/dashboard/project/bmdoouzqinpydwzktmfz)
-2. Navigate to **SQL Editor**
+1. Open your InsForge project dashboard
+2. Navigate to the SQL editor
 3. Copy the contents of `database/schema.sql`
 4. Run the SQL to create tables
 
@@ -53,10 +53,10 @@ Go to [render.com](https://render.com) and sign up.
 Add these in Render dashboard:
 ```
 HONEYPOT_API_KEY=sk_ironmask_hackathon_2026
-OPENROUTER_API_KEY=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
+OPENROUTER_API_KEY=your_openrouter_key_here
 OPENROUTER_MODEL=meta-llama/llama-3.1-405b-instruct:free
-SUPABASE_URL=https://bmdoouzqinpydwzktmfz.supabase.co
-SUPABASE_KEY=sb_publishable_KkVlZEWWHJki51t8eUvfEA_eHoDvAVv
+INSFORGE_BASE_URL=https://your-project.insforge.app
+INSFORGE_ANON_KEY=your_insforge_anon_key
 GUVI_CALLBACK_URL=https://hackathon.guvi.in/api/updateHoneyPotFinalResult
 ```
 
@@ -98,12 +98,12 @@ H:\guvi project\
 │   └── intelligence.py       # Extraction patterns
 ├── utils/
 │   ├── luhn.py               # Card number validation
-│   ├── supabase_client.py    # Database operations
+│   ├── insforge_client.py    # Database operations
 │   └── guvi_callback.py      # GUVI reporting
 ├── data/
 │   └── indian_data.json      # Names, cities, banks
 └── database/
-    └── schema.sql            # Supabase schema
+    └── schema.sql            # Database schema
 ```
 
 ---

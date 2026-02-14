@@ -169,7 +169,7 @@ When scam intel is extracted, your system automatically:
 }
 ```
 
-2. **Saves to Supabase** for your records
+2. **Saves to InsForge** for your records
 
 3. **Logs to Console** for monitoring
 
@@ -199,7 +199,7 @@ When scam intel is extracted, your system automatically:
 2. Have them send a "scam" message
 3. Show the real-time response from honeypot
 4. Show the GUVI callback log in Render console
-5. Show Supabase data being stored
+5. Show InsForge data being stored
 
 **Key Points to Mention:**
 - "Multi-channel capability - works on WhatsApp, SMS, API"

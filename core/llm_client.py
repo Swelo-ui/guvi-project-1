@@ -546,6 +546,7 @@ def sanitize_redundant_questions(
         for msg in conversation_history
         if msg.get("sender") == "agent"
     ][-2:]
+    recent_agent_lower = [t.lower() for t in recent_agent]
     otp_loop = (
         re.search(r'\b(which|kaun|konsi|kaunsi)\b.*\botp\b', response.lower())
         and any(re.search(r'\botp\b', prev.lower()) for prev in recent_agent)
@@ -572,6 +573,10 @@ def sanitize_redundant_questions(
         for key, (_, patterns) in detail_map.items():
             known = memory_hint.get(key)
             if not known:
+                if (re.search(ask_verbs, lowered) or "?" in lowered) and any(re.search(p, lowered) for p in patterns):
+                    if any(re.search(p, ra) for ra in recent_agent_lower for p in patterns):
+                        redundant = True
+                        break
                 continue
             if (re.search(ask_verbs, lowered) or "?" in lowered) and any(re.search(p, lowered) for p in patterns):
                 redundant = True
@@ -600,7 +605,7 @@ def sanitize_redundant_questions(
             if not memory_hint.get(key):
                 candidate = prompts.get(key, "")
                 # Skip if this exact prompt was already used recently
-                if candidate.lower() not in {p.lower() for p in used_prompts}:
+                if candidate.lower() not in {p.lower() for p in used_prompts} and candidate.lower() not in recent_agent_lower:
                     add_prompt = candidate
                     break
         # If all prompts were used, pick a general engagement question
@@ -613,7 +618,7 @@ def sanitize_redundant_questions(
                 "Main apne bete ko bhi bula leta hoon, ek minute.",
             ]
             for gp in general_prompts:
-                if gp.lower() not in {p.lower() for p in used_prompts}:
+                if gp.lower() not in {p.lower() for p in used_prompts} and gp.lower() not in recent_agent_lower:
                     add_prompt = gp
                     break
         if not cleaned:

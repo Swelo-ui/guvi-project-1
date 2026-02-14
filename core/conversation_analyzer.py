@@ -335,15 +335,20 @@ def extract_scammer_intel(message: str, session: Dict) -> None:
     
     # Extract claimed name
     name_patterns = [
-        r'my name is (\w+)',
-        r'i am (\w+) from',
-        r'this is (\w+) calling',
-        r'(\w+) speaking',
+        r'my name is ([a-zA-Z ]{3,})',
+        r'i am ([a-zA-Z ]{3,}) from',
+        r'this is ([a-zA-Z ]{3,}) calling',
+        r'([a-zA-Z ]{3,}) speaking',
+        r'mera poora naam ([a-zA-Z ]{3,}) hai',
+        r'mera naam ([a-zA-Z ]{3,}) hai',
+        r'poora naam ([a-zA-Z ]{3,}) hai',
+        r'my full name is ([a-zA-Z ]{3,})',
     ]
     for pattern in name_patterns:
-        match = re.search(pattern, message_lower)
+        match = re.search(pattern, message, re.IGNORECASE)
         if match:
-            memory["claimed_name"] = match.group(1).title()
+            raw_name = re.sub(r'\s+', ' ', match.group(1)).strip()
+            memory["claimed_name"] = raw_name.title()
             break
     
     # Extract employee ID

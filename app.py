@@ -556,6 +556,7 @@ def honey_pot_chat():
                 "bankAccounts": combined_intel.get("bank_accounts", []),
                 "upiIds": combined_intel.get("upi_ids", []),
                 "emails": combined_intel.get("emails", []),
+                "emailAddresses": combined_intel.get("emails", []),
                 "phishingLinks": combined_intel.get("phishing_links", []),
                 "phoneNumbers": combined_intel.get("phone_numbers", []),
                 "ifscCodes": combined_intel.get("ifsc_codes", []),
@@ -612,6 +613,7 @@ def honey_pot_chat():
                 "bankAccounts": fallback_intel.get("bank_accounts", []),
                 "upiIds": fallback_intel.get("upi_ids", []),
                 "emails": fallback_intel.get("emails", []),
+                "emailAddresses": fallback_intel.get("emails", []),
                 "phishingLinks": fallback_intel.get("phishing_links", []),
                 "phoneNumbers": fallback_intel.get("phone_numbers", []),
                 "ifscCodes": fallback_intel.get("ifsc_codes", []),
@@ -762,9 +764,9 @@ def whatsapp_webhook():
             # Normalize the WhatsApp sender number
             clean_phone = phone_number.lstrip('+')
             if clean_phone.startswith('91') and len(clean_phone) == 12:
-                normalized = f"+91{clean_phone[2:]}"
+                normalized = f"+91-{clean_phone[2:]}"
             elif len(clean_phone) == 10 and clean_phone[0] in '6789':
-                normalized = f"+91{clean_phone}"
+                normalized = f"+91-{clean_phone}"
             else:
                 normalized = f"+{clean_phone}" if not phone_number.startswith('+') else phone_number
             if normalized not in sender_phones:

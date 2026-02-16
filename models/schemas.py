@@ -48,6 +48,10 @@ class ExtractedIntelligence(BaseModel):
         default_factory=list,
         description="Extracted emails"
     )
+    emailAddresses: List[str] = Field(
+        default_factory=list,
+        description="Extracted email addresses (GUVI scoring field)"
+    )
     phishing_links: List[str] = Field(
         default_factory=list,
         description="Malicious links sent by scammer"
@@ -80,6 +84,7 @@ class ExtractedIntelligence(BaseModel):
             "bankAccounts": self.bank_accounts,
             "upiIds": self.upi_ids,
             "emails": self.emails,
+            "emailAddresses": self.emails,
             "phishingLinks": self.phishing_links,
             "phoneNumbers": self.phone_numbers,
             "ifscCodes": self.ifsc_codes,

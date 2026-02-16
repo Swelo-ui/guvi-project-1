@@ -231,8 +231,9 @@ def normalize_phone_numbers(items: List[str]) -> List[str]:
         elif clean.startswith('91') and len(clean) == 12:
             clean = clean[2:]
         # Valid 10-digit Indian mobile number
+        # Use +91-XXXXXXXXXX format for GUVI substring matching compatibility
         if len(clean) == 10 and clean[0] in '6789':
-            normalized.append(f"+91{clean}")
+            normalized.append(f"+91-{clean}")
         # Accept any 10-digit number
         elif len(clean) == 10:
             normalized.append(clean)

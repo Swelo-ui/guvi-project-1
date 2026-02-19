@@ -548,6 +548,7 @@ def honey_pot_chat():
         response = {
             "status": "success",
             "scamDetected": scam_detected,
+            "totalMessagesExchanged": total_messages,
             "engagementMetrics": {
                 "engagementDurationSeconds": total_messages * 45,  # Estimate 45s per message
                 "totalMessagesExchanged": total_messages
@@ -605,6 +606,7 @@ def honey_pot_chat():
         return jsonify({
             "status": "success",
             "scamDetected": fallback_scam,
+            "totalMessagesExchanged": 1,
             "engagementMetrics": {
                 "engagementDurationSeconds": 45,
                 "totalMessagesExchanged": 1

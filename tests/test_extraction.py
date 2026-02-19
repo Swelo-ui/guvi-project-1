@@ -22,7 +22,7 @@ TEST_CASES = [
         "name": "1. Bank Fraud / Account Block",
         "message": "Your SBI account is blocked. Send OTP immediately or your account will be permanently closed. Contact +919876543210.",
         "expect_keywords": ["blocked", "otp", "immediately"],
-        "expect_phones": ["+919876543210"],
+        "expect_phones": ["+91-9876543210"],
         "expect_scam": True,
     },
     {
@@ -30,7 +30,7 @@ TEST_CASES = [
         "message": "Your payment of Rs.5000 failed. To verify, send money to cashback.scam@fakeupi or call +918765432109.",
         "expect_keywords": ["verify", "send money", "cashback"],
         "expect_upi": ["cashback.scam@fakeupi"],
-        "expect_phones": ["+918765432109"],
+        "expect_phones": ["+91-8765432109"],
         "expect_scam": True,
     },
     {
@@ -64,14 +64,14 @@ TEST_CASES = [
         "name": "7. Loan Scam",
         "message": "Pre-approved loan of Rs.5L at 0% interest! Limited time offer. Send Aadhaar + PAN for instant approval. Call 9876543210.",
         "expect_keywords": ["loan", "aadhaar", "pan"],
-        "expect_phones": ["+919876543210"],
+        "expect_phones": ["+91-9876543210"],
         "expect_scam": True,
     },
     {
         "name": "8. Investment Scam",
         "message": "Guaranteed 50% returns on crypto! Invest now. Minimum Rs.10000. WhatsApp: +917654321098 for details.",
         "expect_keywords": ["crypto", "invest"],
-        "expect_phones": ["+917654321098"],
+        "expect_phones": ["+91-7654321098"],
         "expect_scam": True,
     },
     {
@@ -85,7 +85,7 @@ TEST_CASES = [
         "name": "10. OLX / Marketplace Scam",
         "message": "I am an army officer posted in Kashmir. I'll pay in advance via UPI. Send your account details. My ID: Emp123Captain, phone: 8899776655.",
         "expect_keywords": ["army", "officer"],
-        "expect_phones": ["+918899776655"],
+        "expect_phones": ["+91-8899776655"],
         "expect_scam": True,
     },
     {
@@ -226,7 +226,7 @@ class TestEdgeCases:
         text = "Call 9876543210 for support"
         phones = extract_phone_numbers(text)
         accounts = extract_bank_accounts(text)
-        assert "+919876543210" in phones
+        assert "+91-9876543210" in phones
         assert "9876543210" not in accounts
 
     def test_long_number_is_bank_account(self):
@@ -260,10 +260,10 @@ class TestEdgeCases:
     def test_merge_intelligence_deduplication(self):
         """Merging should deduplicate results."""
         intel1 = {"upi_ids": ["abc@ybl"], "bank_accounts": [], "emails": [],
-                  "ifsc_codes": [], "phone_numbers": ["+919876543210"],
+                  "ifsc_codes": [], "phone_numbers": ["+91-9876543210"],
                   "phishing_links": [], "suspicious_keywords": ["otp"]}
         intel2 = {"upi_ids": ["abc@ybl", "def@paytm"], "bank_accounts": [],
-                  "emails": [], "ifsc_codes": [], "phone_numbers": ["+919876543210"],
+                  "emails": [], "ifsc_codes": [], "phone_numbers": ["+91-9876543210"],
                   "phishing_links": [], "suspicious_keywords": ["otp", "verify"]}
         merged = merge_intelligence(intel1, intel2)
         assert len(merged["upi_ids"]) == 2
@@ -279,7 +279,7 @@ class TestEdgeCases:
         text = "Our official email is support@fakebank.com; please send the OTP to +91-9876543210 right away so we can secure your account before it gets blocked."
         phones = extract_phone_numbers(text)
         accounts = extract_bank_accounts(text)
-        assert "+919876543210" in phones
+        assert "+91-9876543210" in phones
         assert "9876543210" not in accounts
 
     def test_guvi_bug_email_as_upi(self):
@@ -343,7 +343,7 @@ class TestEdgeCases:
         phones = extract_phone_numbers(text)
         accounts = extract_bank_accounts(text)
         # It's in bank-account context, phone should NOT include it
-        assert "+919876543210" not in phones, f"Account-context number wrongly in phones: {phones}"
+        assert "+91-9876543210" not in phones, f"Account-context number wrongly in phones: {phones}"
         assert "9876543210" in accounts
 
     def test_round2_merge_preserves_fake_credentials(self):
@@ -375,7 +375,7 @@ class TestEdgeCases:
         """Bug 3 sanity: 10-digit phone w/o account context SHOULD still be a phone."""
         text = "Call me on 9876543210 for details"
         phones = extract_phone_numbers(text)
-        assert "+919876543210" in phones
+        assert "+91-9876543210" in phones
 
 
 class TestAdvancedExtraction:
@@ -563,7 +563,7 @@ class TestBulkExtraction:
     def test_bulk_phone_numbers(self, phone):
         text = f"Call {phone} immediately"
         phones = extract_phone_numbers(text)
-        assert f"+91{phone}" in phones
+        assert f"+91-{phone}" in phones
 
     @pytest.mark.parametrize("ifsc", BULK_IFSC_CODES)
     def test_bulk_ifsc_codes(self, ifsc):
@@ -585,7 +585,7 @@ class TestBulkExtraction:
 
     def test_has_actionable_intel_with_phone(self):
         """Phone numbers alone should now trigger actionable intel."""
-        assert has_actionable_intel({"phone_numbers": ["+919876543210"], "upi_ids": [],
+        assert has_actionable_intel({"phone_numbers": ["+91-9876543210"], "upi_ids": [],
                                      "bank_accounts": [], "phishing_links": [], "ifsc_codes": [],
                                      "aadhaar_numbers": [], "pan_numbers": []})
 

@@ -24,6 +24,14 @@ import os
 import uuid
 from datetime import datetime, timezone
 
+# Fix Windows encoding for emoji/unicode output
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 # ─── Configuration ──────────────────────────────────────────────────
 DEFAULT_LOCAL = "http://127.0.0.1:5000/api/honey-pot"
 DEFAULT_REMOTE = "https://guvi-project-1-wefr.onrender.com/api/honey-pot"

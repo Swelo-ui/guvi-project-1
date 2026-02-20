@@ -88,11 +88,15 @@ def build_callback_payload(
     return {
         "sessionId": session_id,
         "scamDetected": scam_detected,
+        "scamType": "generic_fraud",
+        "confidenceLevel": 0.95 if scam_detected else 0.3,
         "totalMessagesExchanged": total_messages,
+        "engagementDurationSeconds": total_messages * 45,
         "extractedIntelligence": {
             "bankAccounts": list(set(intelligence.get("bank_accounts", []))),
             "upiIds": list(set(intelligence.get("upi_ids", []))),
             "emails": list(set(intelligence.get("emails", []))),
+            "emailAddresses": list(set(intelligence.get("emails", []))),
             "phishingLinks": list(set(intelligence.get("phishing_links", []))),
             "phoneNumbers": list(set(intelligence.get("phone_numbers", []))),
             "ifscCodes": list(set(intelligence.get("ifsc_codes", []))),
@@ -100,7 +104,10 @@ def build_callback_payload(
             "fakeCredentials": list(set(intelligence.get("fake_credentials", []))),
             "aadhaarNumbers": list(set(intelligence.get("aadhaar_numbers", []))),
             "panNumbers": list(set(intelligence.get("pan_numbers", []))),
-            "mentionedBanks": list(set(intelligence.get("mentioned_banks", [])))
+            "mentionedBanks": list(set(intelligence.get("mentioned_banks", []))),
+            "caseIds": list(set(intelligence.get("case_ids", []))),
+            "policyNumbers": list(set(intelligence.get("policy_numbers", []))),
+            "orderNumbers": list(set(intelligence.get("order_numbers", [])))
         },
         "agentNotes": agent_notes
     }

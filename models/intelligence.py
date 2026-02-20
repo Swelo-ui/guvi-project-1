@@ -366,6 +366,65 @@ def extract_pan_numbers(text: str) -> List[str]:
     return _deduplicate(result)
 
 
+def extract_case_ids(text: str) -> List[str]:
+    """Extract case/reference IDs from scammer messages.
+    Patterns: Case #12345, Ref ID: ABC-789, FIR No. 123/2026, Reference: XYZ123,
+    Case ID: CUS-4521, Badge #ABC-123, Ticket No. TKT-456
+    """
+    patterns = [
+        r'(?:case|ref(?:erence)?|fir|complaint|ticket|badge|incident)\s*(?:no\.?|number|id|#|:)\s*[:\s#-]*([A-Z0-9][A-Z0-9/_-]{2,20})',
+        r'#\s*([A-Z]{2,5}-\d{3,10})',
+        r'(?:FIR|CR)\s*(?:No\.?)?\s*[:\s]*([\d]+/[\d]{4})',
+    ]
+    results = []
+    for pat in patterns:
+        for m in re.finditer(pat, text, re.IGNORECASE):
+            val = m.group(1).strip().strip(':').strip()
+            if val and len(val) >= 3:
+                results.append(val)
+    return _deduplicate(results)
+
+
+def extract_policy_numbers(text: str) -> List[str]:
+    """Extract insurance/policy numbers.
+    Patterns: Policy #LIC-482901, Policy No. 123456, Insurance ID: INS-789
+    """
+    patterns = [
+        r'(?:policy|insurance)\s*(?:no\.?|number|id|#|:)\s*[:\s#-]*([A-Z0-9][A-Z0-9/_-]{3,20})',
+        r'\b(LIC-\d{4,10})\b',
+        r'\b(INS-\d{4,10})\b',
+        r'\b(POL-\d{4,10})\b',
+    ]
+    results = []
+    for pat in patterns:
+        for m in re.finditer(pat, text, re.IGNORECASE):
+            val = m.group(1).strip().strip(':').strip()
+            if val and len(val) >= 3:
+                results.append(val)
+    return _deduplicate(results)
+
+
+def extract_order_numbers(text: str) -> List[str]:
+    """Extract order/tracking/parcel IDs.
+    Patterns: Order #FK-8823, Order ID: ORD-123, Tracking: IND-29384, Parcel #PKG-456
+    """
+    patterns = [
+        r'(?:order|tracking|parcel|shipment|consignment)\s*(?:no\.?|number|id|#|:)\s*[:\s#-]*([A-Z0-9][A-Z0-9/_-]{3,20})',
+        r'\b(FK-\d{3,10})\b',
+        r'\b(ORD-\d{3,10})\b',
+        r'\b(IND-\d{3,10})\b',
+        r'\b(PKG-\d{3,10})\b',
+        r'\b(AWB-\d{3,10})\b',
+        r'\b(TRK-\d{3,10})\b',
+    ]
+    results = []
+    for pat in patterns:
+        for m in re.finditer(pat, text, re.IGNORECASE):
+            val = m.group(1).strip().strip(':').strip()
+            if val and len(val) >= 3:
+                results.append(val)
+    return _deduplicate(results)
+
 
 # IFSC code prefix → bank short name mapping
 IFSC_PREFIX_TO_BANK = {
@@ -542,6 +601,10 @@ def extract_all_intelligence(text: str) -> Dict[str, Any]:
         "aadhaar_numbers": extract_aadhaar_numbers(text),
         "pan_numbers": extract_pan_numbers(text),
         "mentioned_banks": extract_mentioned_banks(text),
+        # Evaluation bonus fields
+        "case_ids": extract_case_ids(text),
+        "policy_numbers": extract_policy_numbers(text),
+        "order_numbers": extract_order_numbers(text),
     }
 
 
@@ -559,7 +622,8 @@ def merge_intelligence(existing: Dict[str, Any], new: Dict[str, Any]) -> Dict[st
     merged = {}
     for key in ["upi_ids", "bank_accounts", "emails", "ifsc_codes", "phone_numbers",
                 "phishing_links", "suspicious_keywords", "fake_credentials",
-                "aadhaar_numbers", "pan_numbers", "mentioned_banks"]:
+                "aadhaar_numbers", "pan_numbers", "mentioned_banks",
+                "case_ids", "policy_numbers", "order_numbers"]:
         existing_list = existing.get(key, [])
         new_list = new.get(key, [])
         merged[key] = _deduplicate(existing_list + new_list)

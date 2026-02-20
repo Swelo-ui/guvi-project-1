@@ -547,10 +547,14 @@ def honey_pot_chat():
         # 10. Build response
         response = {
             "status": "success",
+            "sessionId": session_id,
             "scamDetected": scam_detected,
+            "scamType": llm_response.get("scam_type", "generic_fraud"),
+            "confidenceLevel": 0.95 if scam_detected else 0.3,
             "totalMessagesExchanged": total_messages,
+            "engagementDurationSeconds": total_messages * 45,
             "engagementMetrics": {
-                "engagementDurationSeconds": total_messages * 45,  # Estimate 45s per message
+                "engagementDurationSeconds": total_messages * 45,
                 "totalMessagesExchanged": total_messages
             },
             "extractedIntelligence": {
@@ -565,7 +569,10 @@ def honey_pot_chat():
                 "fakeCredentials": combined_intel.get("fake_credentials", []),
                 "aadhaarNumbers": combined_intel.get("aadhaar_numbers", []),
                 "panNumbers": combined_intel.get("pan_numbers", []),
-                "mentionedBanks": combined_intel.get("mentioned_banks", [])
+                "mentionedBanks": combined_intel.get("mentioned_banks", []),
+                "caseIds": combined_intel.get("case_ids", []),
+                "policyNumbers": combined_intel.get("policy_numbers", []),
+                "orderNumbers": combined_intel.get("order_numbers", [])
             },
             "agentNotes": agent_notes,
             "reply": llm_response.get("response", "Haan ji? I am not understanding...")
@@ -605,8 +612,12 @@ def honey_pot_chat():
         
         return jsonify({
             "status": "success",
+            "sessionId": fallback_session_id,
             "scamDetected": fallback_scam,
+            "scamType": "generic_fraud",
+            "confidenceLevel": 0.8 if fallback_scam else 0.2,
             "totalMessagesExchanged": 1,
+            "engagementDurationSeconds": 45,
             "engagementMetrics": {
                 "engagementDurationSeconds": 45,
                 "totalMessagesExchanged": 1
@@ -623,7 +634,10 @@ def honey_pot_chat():
                 "fakeCredentials": fallback_intel.get("fake_credentials", []),
                 "aadhaarNumbers": fallback_intel.get("aadhaar_numbers", []),
                 "panNumbers": fallback_intel.get("pan_numbers", []),
-                "mentionedBanks": fallback_intel.get("mentioned_banks", [])
+                "mentionedBanks": fallback_intel.get("mentioned_banks", []),
+                "caseIds": fallback_intel.get("case_ids", []),
+                "policyNumbers": fallback_intel.get("policy_numbers", []),
+                "orderNumbers": fallback_intel.get("order_numbers", [])
             },
             "agentNotes": "Error occurred, using fallback response with regex extraction",
             "reply": get_random_fallback(fallback_session_id)

@@ -592,14 +592,14 @@ def sanitize_redundant_questions(
     if removed:
         prompt_order = ["email", "branch", "ifsc", "upi_id", "account_number", "phone", "employee_id", "name"]
         prompts = {
-            "email": "Aapka official bank email kya hai?",
-            "branch": "Aap kis branch se hain? Branch ka naam bata dijiye.",
-            "ifsc": "Aapka IFSC code kya hai?",
-            "upi_id": "Aapka official UPI ID bata dijiye.",
-            "account_number": "Aapka official account number kya hai?",
-            "phone": "Aapka official helpline number kya hai?",
-            "employee_id": "Aapka employee ID kya hai?",
-            "name": "Aapka poora naam kya hai?"
+            "email": "Proof bhejiyo, aapna official bank email kya hai batao?",
+            "branch": "Aap kis branch se bol rahe ho? IFSC code aur naam dono chahiye.",
+            "ifsc": "Paise bhej rahe hain apne account me, apna IFSC code bhejiye pehle.",
+            "upi_id": "Paisa transfer karne ke liye apna personal UPI ID aur account number bolo!",
+            "account_number": "Main abhi bhej deti hoon paisa, aap bas apna Account Number dijiye.",
+            "phone": "Awaaz theek nahi aa rahi, apna WhatsApp ya dusra Phone Number do beta.",
+            "employee_id": "Aap mujhe apna bank ka Employee ID or naam batao warna m phone kaat dungi.",
+            "name": "Sabse pehle verification ke liye apna poora naam bataiye."
         }
         # Track which extraction prompts have been used recently to avoid repetition
         used_prompts = get_used_responses(session_id)

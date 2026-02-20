@@ -25,6 +25,21 @@
 
 ## 🏆 GUVI India AI Impact Buildathon
 
+## 🌟 Hackathon Evaluation Highlights
+
+### 1. Code Quality & Structure
+- **Modular Architecture:** Separated into `core` (LLM & logic), `models` (data extraction), `utils` (db & integrations).
+- **Comprehensive Documentation:** Full setup instructions, API docs via Swagger (`/apidocs`), and inline comments.
+- **Robust Error Handling:** Fallback responses ensure the honeypot never crashes during live testing.
+
+### 2. Deep Intelligence Extraction
+- **Regex + LLM Fusion:** Safely extracts 14+ intelligence points including `bankAccounts`, `upiIds`, `caseIds`, `policyNumbers`, `aadhaar`, `pan`.
+- **Scammer Memory Context:** AI remembers previously extracted details and proactively asks for MISSING details (Reverse Extraction).
+
+### 3. Advanced Conversation Tactics
+- **Red-Flag Identification:** Detects style-switches and mentions of suspicious links or OTP requests naturally.
+- **Aggressive Questioning:** Natively engineered prompts force the persona to actively elicit specific details from the scammer before the session ends.
+
 > **Problem Statement 2:** Create an AI-powered agentic honeypot that can intelligently engage with potential scammers, waste their time, and extract critical information for law enforcement.
 
 This project is developed for the **GUVI HCL Hackathon 2026** - India's premier AI Impact Buildathon, focusing on creating innovative AI solutions for real-world problems.
@@ -234,7 +249,10 @@ Content-Type: application/json
 ```json
 {
   "status": "success",
+  "sessionId": "unique_session_id",
   "scamDetected": true,
+  "scamType": "bank_fraud",
+  "confidenceLevel": 0.95,
   "engagementMetrics": {
     "engagementDurationSeconds": 180,
     "totalMessagesExchanged": 4
@@ -243,6 +261,7 @@ Content-Type: application/json
     "bankAccounts": ["1234567890123"],
     "upiIds": ["scammer@ybl"],
     "emails": ["fraudster@gmail.com"],
+    "emailAddresses": ["fraudster@gmail.com"],
     "phishingLinks": ["bit.ly/fake-link"],
     "phoneNumbers": ["+919876543210"],
     "ifscCodes": ["SBIN0001234"],
@@ -250,7 +269,10 @@ Content-Type: application/json
     "fakeCredentials": ["EmpID: 98765"],
     "aadhaarNumbers": ["1234 5678 9012"],
     "panNumbers": ["ABCDE1234F"],
-    "mentionedBanks": ["sbi"]
+    "mentionedBanks": ["sbi"],
+    "caseIds": ["CASE-998"],
+    "policyNumbers": ["POL-1234"],
+    "orderNumbers": ["ORD-5678"]
   },
   "agentNotes": "Scammer is attempting bank fraud using fear tactics",
   "reply": "Haan ji? I am not understanding... which account is blocked? Please wait, my grandson is coming, he knows computer..."

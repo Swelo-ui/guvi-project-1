@@ -551,8 +551,6 @@ def honey_pot_chat():
             "scamDetected": scam_detected,
             "scamType": llm_response.get("scam_type", "generic_fraud"),
             "confidenceLevel": 0.95 if scam_detected else 0.3,
-            "totalMessagesExchanged": total_messages,
-            "engagementDurationSeconds": total_messages * 45,
             "engagementMetrics": {
                 "engagementDurationSeconds": total_messages * 45,
                 "totalMessagesExchanged": total_messages
@@ -616,8 +614,6 @@ def honey_pot_chat():
             "scamDetected": fallback_scam,
             "scamType": "generic_fraud",
             "confidenceLevel": 0.8 if fallback_scam else 0.2,
-            "totalMessagesExchanged": 1,
-            "engagementDurationSeconds": 45,
             "engagementMetrics": {
                 "engagementDurationSeconds": 45,
                 "totalMessagesExchanged": 1
